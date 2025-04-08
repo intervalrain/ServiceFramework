@@ -374,11 +374,11 @@ public abstract class ServiceHandler : MessageTransportBase, IDisposable
         }
 
         var methods = GetType().GetMethods(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-            .Where(m => m.GetCustomAttributes(typeof(ServiceHandlerAttribute), false).Length > 0);
+            .Where(m => m.GetCustomAttributes(typeof(SubjectAttribute), false).Length > 0);
 
         foreach (var method in methods)
         {
-            var attr = method.GetCustomAttribute<ServiceHandlerAttribute>();
+            var attr = method.GetCustomAttribute<SubjectAttribute>();
             if (attr == null) continue;
 
             var endpointName = attr.EndpointName;
