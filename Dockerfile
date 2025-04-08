@@ -12,7 +12,7 @@ RUN dotnet restore "/app/EdgeSync.sln"
 COPY . .
 
 # Build and publish for ShadowAgent.Web
-RUN dotnet publish "/app/src/EdgeSync.ServiceFramework.Core/EdgeSync.ServiceFramework.Core.csproj" -c Release -o /app/out --no-restore
+RUN dotnet publish "/app/EdgeSync.sln" -c Release -o /app/out --no-restore
 
 
 # Stage 2: Run the Application
