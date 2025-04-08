@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  devcontainer:
+    image: mcr.microsoft.com/devcontainers/dotnet:1-8.0
+    volumes:
+      - ..:/workspace:cached
+    # network_mode: service:localstack
+    command: sleep infinity
+    
+  nats1:
+    image: docker.io/nats:2.10.24
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - ./data/db:/data/db
+    command:
+      - "--name=nats1"
+      - "--http_port=8222"
+      - "--js"
+      - "--sd=/data"
