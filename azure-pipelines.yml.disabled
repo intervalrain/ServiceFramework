@@ -1,0 +1,125 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+name: $(SourceBranchName)_$(Date:yyyyMMdd)$(Rev:.r)
+trigger:
+  branches:
+    include:
+      - 'develop'
+
+variables:
+  - name: NUGET_PACKAGES
+    value: $(Pipeline.Workspace)/.nuget/packages
+  - name: dockerRegistryServiceConnection
+    value: 'Edge COA Harbor' 
+  - name: imageRepository
+    value: 'edge-coa/provision-server'
+  - name: containerRegistry
+    value: 'harbor.arfa.wise-paas.com'
+  - name: imageTag
+    ${{ if startsWith(variables['Build.SourceBranch'], 'refs/tags/')}}:
+      value: '$(Build.SourceBranchName)'
+    ${{ else }}:
+      value: '$(Build.BuildNumber)'
+
+stages:
+- stage: Build
+  displayName: Build image
+  jobs:
+  - job: Build
+    displayName: Build
+    pool:
+      name: 'CI Agent Pool'
+    steps:
+    - task: Docker@2
+      displayName: Build shadow agent base image
+      inputs:
+        command: build
+        repository: 'edge-coa/digitaltwin_shadow_agent'
+        dockerfile: '$(Build.SourcesDirectory)/Dockerfile'
+        tags: |
+          latest
+          $(imageTag)
+    - task: Docker@2
+      displayName: Build shadow agent image
+      inputs:
+        command: buildAndPush
+        containerRegistry: $(dockerRegistryServiceConnection)
+        repository: 'edge-coa/digitaltwin_shadow_agent'
+        dockerfile: '$(Build.SourcesDirectory)/Dockerfile'
+        tags: |
+          latest
+          $(imageTag)
+    - task: Docker@2
+      displayName: Build db migrator image and push
+      inputs:
+        command: buildAndPush
+        containerRegistry: $(dockerRegistryServiceConnection)
+        repository: 'edge-coa/digitaltwin_shadow_agent_dbmigrator'
+        dockerfile: '$(Build.SourcesDirectory)/ShadowAgent/src/ShadowAgent.DbMigrator/Dockerfile'
+        tags: |
+          latest
+          $(imageTag)
+
+- stage: Deploy_SIT
+  variables:
+    - group: Breadboard SIT
+  displayName: Deploy to SIT
+  dependsOn: Build
+  jobs:
+  - job: Deploy
+    displayName: Deploy container
+    pool:
+      name: breadboard-sit
+    steps:
+    - task: DownloadSecureFile@1
+      name: appsettings
+      displayName: 'Download appsettings.json file'
+      inputs:
+        secureFile: 'appsettings.json'
+    - task: DownloadSecureFile@1
+      name: nats_broker_shadowagent
+      displayName: 'Download message broker credential file for shadow agent service'
+      inputs:
+        secureFile: 'SIT-nats-broker-shadowagent.creds'
+    - script: |
+        echo "$(SHADOW_AGENT_CONNECTION_STRING)"
+        sed -i "s/SHADOW_AGENT_CONNECTION_STRING/$(SHADOW_AGENT_CONNECTION_STRING)/g" $(appsettings.secureFilePath)
+        
+        echo ""
+        echo "#############################################"
+        echo "###### Deploy shadow agent db migrator ######"
+        echo "#############################################"
+        echo ""
+        
+        docker rm -f digitaltwin_shadow_agent_dbmigrator
+        docker run --name digitaltwin_shadow_agent_dbmigrator --network internal \
+        -v $(appsettings.secureFilePath):/app/appsettings.json \
+        -e ASPNETCORE_ENVIRONMENT=Production \
+        -e ASPNETCORE_URLS=http://+:8888 \
+        -e ConnectionStrings__Default="$(SHADOW_AGENT_CONNECTION_STRING)" \
+        $(containerRegistry)/edge-coa/digitaltwin_shadow_agent_dbmigrator:$(imageTag)
+    
+        echo ""
+        echo "#########################################"
+        echo "###### Deploy shadow agent service ######"
+        echo "#########################################"
+        echo ""
+
+        docker rm -f digitaltwin_shadow_agent
+        docker run --name digitaltwin_shadow_agent -p 44327:44327 --network internal  --network external -d \
+        -v $(nats_broker_shadowagent.secureFilePath):/app/nats/nats-broker-shadowagent.creds \
+        -e ASPNETCORE_ENVIRONMENT=Production \
+        -e ASPNETCORE_URLS=http://+:44327 \
+        -e NATS_URL="$(SHADOW_AGENT_NATS_URL)" \
+        -e NATS_CRED="/app/nats/nats-broker-shadowagent.creds" \
+        -e ConnectionStrings__Default="$(SHADOW_AGENT_CONNECTION_STRING)" \
+        $(containerRegistry)/edge-coa/digitaltwin_shadow_agent:$(imageTag)
+
+
+#        docker pull $(containerRegistry)/$(imageRepository):latest
+#        docker stop developer-portal
+#        docker run -itd --rm --name developer-portal -p 80:80 $(containerRegistry)/$(imageRepository):latest
+      displayName: Deploy docker container
