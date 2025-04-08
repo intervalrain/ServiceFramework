@@ -291,7 +291,7 @@ public abstract class JetStreamClient(ILogger<JetStreamClient> logger, INatsConn
     {
         await TryConnectAsync();
 
-        await _natsConnection!.PublishAsync(subject, data, serializer: _serializer, cancellationToken: _cancellationToken);
+        await _natsConnection!.PublishAsync(subject, data, serializer: _serializer!, cancellationToken: _cancellationToken);
     }
 
     /// <summary>

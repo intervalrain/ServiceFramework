@@ -1,6 +1,5 @@
 using System.Text.Json;
 
-
 namespace EdgeSync.ServiceFramework.Contracts;
 
 public class ServiceResponseModelDto

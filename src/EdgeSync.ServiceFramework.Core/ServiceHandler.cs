@@ -15,8 +15,6 @@ using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NATS.Client.Services;
 
-using ShadowAgent.Infrastructure.Models;
-
 namespace EdgeSync.ServiceFramework;
 
 /// <summary>

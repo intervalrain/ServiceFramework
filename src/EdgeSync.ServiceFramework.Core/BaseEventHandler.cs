@@ -7,8 +7,6 @@ using EdgeSync.ServiceFramework.JetStream;
 
 using Microsoft.Extensions.Logging;
 
-using ShadowAgent.Infrastructure.Models;
-
 namespace EdgeSync.ServiceFramework;
 
 /// <summary>

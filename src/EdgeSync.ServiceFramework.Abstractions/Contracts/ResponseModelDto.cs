@@ -1,7 +1,6 @@
-using System;
 using System.Text.Json;
 
-namespace ShadowAgent.Infrastructure.Models;
+namespace EdgeSync.ServiceFramework.Contracts;
 
 // Define the error code and message for the response model
 public enum ResultCode

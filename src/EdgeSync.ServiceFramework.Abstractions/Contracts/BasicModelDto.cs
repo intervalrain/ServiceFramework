@@ -1,9 +1,7 @@
-using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-
-namespace ShadowAgent.Infrastructure.Models;
+namespace EdgeSync.ServiceFramework.Contracts;
 
 public interface IBasicModelDto
 {

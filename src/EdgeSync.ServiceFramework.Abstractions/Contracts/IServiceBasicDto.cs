@@ -1,4 +1,4 @@
-namespace ShadowAgent.Infrastructure.Models;
+namespace EdgeSync.ServiceFramework.Contracts;
 
 public interface IServiceBasicDto
 {
