@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
-    <PackageId>EdgeSync.ServiceFramework.DependencyInjection</PackageId>
+    <PackageId>EdgeSync.ServiceFramework.Testlib</PackageId>
     <Version>1.0.0</Version>
     <Authors>Rain Hu, Kevin Chien</Authors>
     <Company>Advantech</Company>
