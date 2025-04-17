@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 
 using EdgeSync.ServiceFramework.Contracts;
+using EdgeSync.ServiceFramework.Exceptions;
 
 using EdgeSync.ServiceFramework.JetStream;
 
@@ -111,6 +112,13 @@ public abstract class BaseEventHandler(
     /// <returns>A task that represents the asynchronous operation.</returns>
     protected override async Task ExecuteAsync(CancellationToken cancellationToken)
     {
+
+        if (ServiceConfig.MsgBrokerUrl.Length == 0)
+        {
+            Logger.LogError("ServiceConfig.MsgBusUrl is not set. Cannot initialize service.");
+            return;
+        }
+
         while (!cancellationToken.IsCancellationRequested)
         {
             try
@@ -120,6 +128,17 @@ public abstract class BaseEventHandler(
                 {
                     await Broker.ConsumeAsync(consumer, HandleInputEvent);
                     await Task.Yield();
+                }
+            }
+            catch (NatsConnException ex)
+            {
+                Logger.LogError(ex, "NATS connection error: {ConsumerName} {StreamName} {SubjectName}", ConsumerName, StreamName, SubjectName);
+                Logger.LogError(ex.Message);
+                Logger.LogError(ex, ex.StackTrace);
+                if (ex.ErrorCode == NatsErrorCode.CredFileEmpty || ex.ErrorCode == NatsErrorCode.UrlEmpty)
+                {
+                    Logger.LogError("NATS URL or CredFile is empty. Cannot initialize service.");
+                    return;
                 }
             }
             catch (Exception e)

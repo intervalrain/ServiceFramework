@@ -1,11 +1,13 @@
 using System.Reflection;
 
+using EdgeSync.ServiceFramework.Exceptions;
 
 using EdgeSync.ServiceFramework.JetStream;
 using EdgeSync.ServiceFramework.KeyValueStore;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 using NATS.Client.Core;
 
@@ -18,16 +20,20 @@ public static class ServiceCollectionExtensions
         // Register factories
         services.AddSingleton<IJetStreamClientFactory, JetStreamClientFactory>();
         services.AddSingleton<INatsConnectionFactory, NatsConnectionFactory>();
-        
-        // Register INatsConnection properly using the service provider
-        services.AddSingleton<INatsConnection>(sp =>
+
+        if (ServiceConfig.MsgBusUrl != null)
         {
-            var factory = sp.GetRequiredService<INatsConnectionFactory>();
-            return factory.CreateConnectionAsync().GetAwaiter().GetResult();
-        });
+            // this connection is used for connecting to msg bus, if the url is not set, it will be ignored.
+            // Register INatsConnection properly using the service provider
+            services.AddSingleton<INatsConnection>(sp =>
+            {
+                var factory = sp.GetRequiredService<INatsConnectionFactory>();
+                return factory.CreateConnectionAsync().GetAwaiter().GetResult();
+            });
+        }
 
         services.AddSingleton<IKVStore, KVStoreClient>();
-        
+
         // Register client services
         services.AddSingleton<IBrokerJetStreamClient>(sp => 
         {

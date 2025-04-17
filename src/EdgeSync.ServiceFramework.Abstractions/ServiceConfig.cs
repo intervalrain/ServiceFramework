@@ -5,15 +5,15 @@ public class ServiceConfig
     public static string MsgBrokerUrl
     {
         get => Environment.GetEnvironmentVariable("MSG_BROKER_URL")
-                                        ?? "nats://172.17.20.184:4222";
+                                        ?? "";
     }
     public static string MsgBusUrl
     {
         get => Environment.GetEnvironmentVariable("MSG_BUS_URL")
-                                        ?? "nats://172.17.20.184:4222";
+                                        ?? "";
     }
-    public static string MsgBrokerCredFile { get => Environment.GetEnvironmentVariable("MSG_BROKER_CRED") ?? "/workspace/ShadowAgent/etc/nats/shadowagent_dev.creds"; }
-    public static string MsgBusCredFile { get => Environment.GetEnvironmentVariable("MSG_BUS_CRED") ?? "/workspace/ShadowAgent/etc/nats/shadowagent_dev.creds"; }
+    public static string MsgBrokerCredFile { get => Environment.GetEnvironmentVariable("MSG_BROKER_CRED") ?? ""; }
+    public static string MsgBusCredFile { get => Environment.GetEnvironmentVariable("MSG_BUS_CRED") ?? ""; }
 
     public const int NatsReTryCount = 10;
     public const int NatsRetryDelay = 1000;

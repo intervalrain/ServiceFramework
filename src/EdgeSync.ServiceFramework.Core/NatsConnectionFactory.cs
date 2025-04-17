@@ -1,3 +1,5 @@
+using EdgeSync.ServiceFramework.Exceptions;
+
 using Microsoft.Extensions.Logging;
 
 using NATS.Client.Core;

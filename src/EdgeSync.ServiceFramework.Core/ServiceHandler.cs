@@ -101,6 +101,13 @@ public abstract class ServiceHandler : MessageTransportBase, IDisposable
 
     protected override async Task ExecuteAsync(CancellationToken cancellationToken)
     {
+
+        if (ServiceConfig.MsgBusUrl.Length == 0)
+        {
+            Logger.LogError("ServiceConfig.MsgBusUrl is not set. Cannot initialize service.");
+            return;
+        }
+
         await InitializeServiceAsync(cancellationToken);
         while (!cancellationToken.IsCancellationRequested)
         {

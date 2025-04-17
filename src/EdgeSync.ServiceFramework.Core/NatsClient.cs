@@ -28,6 +28,11 @@ public class NatsConnClient
     /// <exception cref="Exception">Thrown when connection fails after all retries.</exception>
     public static async Task<NatsConnection> CreateClientConnectionAsync(NatsOpts options, int reTryCount = ServiceConfig.NatsReTryCount, CancellationToken cancellationToken = default)
     {
+        if (options.Url.Length == 0)
+        {
+            throw new ArgumentException("NATS URL is empty.");
+        }
+
         var opts = ClientOpts(options);
         for (var i = 0; i < reTryCount; i++)
         {
