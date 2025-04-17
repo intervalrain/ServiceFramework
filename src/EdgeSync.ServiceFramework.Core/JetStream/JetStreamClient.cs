@@ -47,12 +47,13 @@ public abstract class JetStreamClient(ILogger<JetStreamClient> logger, INatsConn
     public abstract string Url { get; }
     public abstract string UserCredFilePath { get; }
 
-    public string StreamName { get; set; } = "shadowagent_default";
+    public string StreamName { get; set; } = "sf_stream";
 
     public int MaxMsgs { get; } = ServiceConfig.NatsJetStreamConsumerFetch; // max number of messages to per callback function call.
 
     public async Task TryConnectAsync()
     {
+
         if (IsConnected())
         {
             return;
@@ -148,10 +149,12 @@ public abstract class JetStreamClient(ILogger<JetStreamClient> logger, INatsConn
         var ackWait = TimeSpan.FromMilliseconds(_ackWait);
         var ackPolicy = ConsumerConfigAckPolicy.Explicit;
         var subjects = Array.Empty<string>();
+
         if (subject != null)
         {
             subjects = [subject];
         }
+
         var cfg = new StreamConfig(name: streamName, subjects: subjects)
         {
             // Retention = StreamConfigRetention.Workqueue,

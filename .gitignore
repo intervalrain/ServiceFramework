@@ -257,16 +257,7 @@ paket-files/
 **/.abpstudio/
 
 # ShadowAgent
-src/ShadowAgent.Web/Logs/*
-src/ShadowAgent.Web.Host/Logs/*
-src/ShadowAgent.Web.Public/Logs/*
-src/ShadowAgent.Web.Public.Host/Logs/*
-src/ShadowAgent.AuthServer/Logs/*
-src/ShadowAgent.HttpApi.Host/Logs/*
-src/ShadowAgent.HttpApi.HostWithIds/Logs/*
-src/ShadowAgent.DbMigrator/Logs/*
-src/ShadowAgent.Blazor.Server/Logs/*
-src/ShadowAgent.Blazor.Server.Tiered/Logs/*
+src/*/Logs/*
 
 # Use abp install-libs to restore.
 **/wwwroot/libs/*
