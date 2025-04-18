@@ -1,19 +1,34 @@
+using Microsoft.Extensions.Options;
+
 namespace EdgeSync.ServiceFramework;
 
 public class ServiceConfig
 {
-    public static string MsgBrokerUrl
+    private static NatsApiOptions _options = new NatsApiOptions();
+
+    public static void Initialize(NatsApiOptions? options)
     {
-        get => Environment.GetEnvironmentVariable("MSG_BROKER_URL")
-                                        ?? "";
+        if (options != null)
+        {
+            _options = options;
+        }
     }
-    public static string MsgBusUrl
-    {
-        get => Environment.GetEnvironmentVariable("MSG_BUS_URL")
-                                        ?? "";
-    }
-    public static string MsgBrokerCredFile { get => Environment.GetEnvironmentVariable("MSG_BROKER_CRED") ?? ""; }
-    public static string MsgBusCredFile { get => Environment.GetEnvironmentVariable("MSG_BUS_CRED") ?? ""; }
+
+    public static string MsgBrokerUrl => string.IsNullOrEmpty(_options.MsgBrokerUrl)
+                                        ? Environment.GetEnvironmentVariable("MSG_BROKER_URL") ?? ""
+                                        : _options.MsgBrokerUrl;
+    
+    public static string MsgBusUrl => string.IsNullOrEmpty(_options.MsgBusUrl)
+                                        ? Environment.GetEnvironmentVariable("MSG_BUS_URL") ?? ""
+                                        : _options.MsgBusUrl;
+    
+    public static string MsgBrokerCredFile => string.IsNullOrEmpty(_options.MsgBrokerCredFile)
+                                        ? Environment.GetEnvironmentVariable("MSG_BROKER_CRED") ?? ""
+                                        : _options.MsgBrokerCredFile;
+    
+    public static string MsgBusCredFile => string.IsNullOrEmpty(_options.MsgBusCredFile)
+                                        ? Environment.GetEnvironmentVariable("MSG_BUS_CRED") ?? ""
+                                        : _options.MsgBusCredFile;
 
     public const int NatsReTryCount = 10;
     public const int NatsRetryDelay = 1000;

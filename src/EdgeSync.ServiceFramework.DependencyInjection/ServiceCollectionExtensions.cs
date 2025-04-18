@@ -6,6 +6,7 @@ using EdgeSync.ServiceFramework.KeyValueStore;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 using NATS.Client.Core;
 
@@ -22,17 +23,21 @@ public static class ServiceCollectionExtensions
     /// <param name="services">The IServiceCollection to add services to</param>
     /// <param name="configureOptions">Optional action to configure the NatsApiOptions</param>
     /// <returns>The service collection for chaining</returns>
-    public static IServiceCollection AddNatsApi(this IServiceCollection services, Action<NatsApiOptions> configureOptions = null)
+    public static IServiceCollection AddNatsApi(this IServiceCollection services, Action<NatsApiOptions>? configureOptions = null)
     {
+        var options = new NatsApiOptions();
+
+        configureOptions?.Invoke(options);
+
+        ServiceConfig.Initialize(options);
+
         // Inject Nats Connection Url & CredFile
         services.Configure<NatsApiOptions>(options =>
         {
-            options.MsgBrokerUrl ??= Environment.GetEnvironmentVariable("MSG_BROKER_URL") ?? "";
-            options.MsgBusUrl ??= Environment.GetEnvironmentVariable("MSG_BUS_URL") ?? "";
-            options.MsgBrokerCredFile ??= Environment.GetEnvironmentVariable("MSG_BROKER_CRED") ?? "";
-            options.MsgBrokerCredFile ??= Environment.GetEnvironmentVariable("MSG_BUS_CRED") ?? "";
-
-            configureOptions?.Invoke(options);
+            options.MsgBrokerUrl = options.MsgBrokerUrl;
+            options.MsgBusUrl = options.MsgBusUrl;
+            options.MsgBrokerCredFile = options.MsgBrokerCredFile;
+            options.MsgBrokerCredFile = options.MsgBusCredFile;
         });
 
         // Register factories
