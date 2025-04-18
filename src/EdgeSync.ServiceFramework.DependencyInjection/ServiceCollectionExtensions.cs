@@ -1,22 +1,40 @@
 using System.Reflection;
 
-using EdgeSync.ServiceFramework.Exceptions;
 
 using EdgeSync.ServiceFramework.JetStream;
 using EdgeSync.ServiceFramework.KeyValueStore;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 
 using NATS.Client.Core;
 
 namespace EdgeSync.ServiceFramework.DependencyInjection;
 
+/// <summary>
+/// Extension methods for configuring NATS API services
+/// </summary>
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddNatsApi(this IServiceCollection services)
+    /// <summary>
+    /// Adds NATS API services to the service collection with options configuration
+    /// </summary>
+    /// <param name="services">The IServiceCollection to add services to</param>
+    /// <param name="configureOptions">Optional action to configure the NatsApiOptions</param>
+    /// <returns>The service collection for chaining</returns>
+    public static IServiceCollection AddNatsApi(this IServiceCollection services, Action<NatsApiOptions> configureOptions = null)
     {
+        // Inject Nats Connection Url & CredFile
+        services.Configure<NatsApiOptions>(options =>
+        {
+            options.MsgBrokerUrl ??= Environment.GetEnvironmentVariable("MSG_BROKER_URL") ?? "";
+            options.MsgBusUrl ??= Environment.GetEnvironmentVariable("MSG_BUS_URL") ?? "";
+            options.MsgBrokerCredFile ??= Environment.GetEnvironmentVariable("MSG_BROKER_CRED") ?? "";
+            options.MsgBrokerCredFile ??= Environment.GetEnvironmentVariable("MSG_BUS_CRED") ?? "";
+
+            configureOptions?.Invoke(options);
+        });
+
         // Register factories
         services.AddSingleton<IJetStreamClientFactory, JetStreamClientFactory>();
         services.AddSingleton<INatsConnectionFactory, NatsConnectionFactory>();
