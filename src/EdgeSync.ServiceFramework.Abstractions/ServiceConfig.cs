@@ -30,4 +30,5 @@ public class ServiceConfig
     public const int NatsJetStreamConsumerFetch = 100;
 
     public const string DeviceSensorKVStore = "dtp_sensorResourceID";
+    public const string DeviceDtdlKVStore = "dtp_deviceResourceID";
 }

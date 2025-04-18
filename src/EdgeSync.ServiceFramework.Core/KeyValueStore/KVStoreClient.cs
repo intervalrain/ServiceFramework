@@ -10,7 +10,7 @@ using NATS.Client.KeyValueStore;
 
 namespace EdgeSync.ServiceFramework.KeyValueStore;
 
-public class KVStoreClient : MsgBrokerJetStreamClient, IKVStore
+public class KVStoreClient : MsgBusJetStreamClient, IKVStore
 {
     private Dictionary<string, INatsKVStore> _kvStores = new Dictionary<string, INatsKVStore>();
 
