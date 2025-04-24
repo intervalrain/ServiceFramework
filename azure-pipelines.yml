@@ -27,6 +27,7 @@ jobs:
     inputs:
       command: 'build'
       projects: '**/*.csproj'
+      arguments: '-c Release'
   # - task: DotNetCoreCLI@2
   #   displayName: dotnet test
   #   inputs:
@@ -44,13 +45,28 @@ jobs:
       version: '9.0.x'
       includePreviewVersions: true
   - task: DotNetCoreCLI@2
+    displayName: dotnet restore
+    inputs:
+      command: 'restore'
+      projects: '**/src/**/*.csproj'
+      feedsToUse: 'select'
+      vstsFeed: 'd592cbbf-1bf4-4d80-8f88-e70b1ba73d84/bbd4f7fc-436c-4173-aa8a-a1af2e1a3be7'
+  - task: DotNetCoreCLI@2
+    displayName: dotnet build
+    inputs:
+      command: 'build'
+      projects: '**/src/**/*.csproj'
+      arguments: '-c Release'
+  - task: DotNetCoreCLI@2
     displayName: dotnet pack
     inputs:
       command: 'pack'
       packagesToPack: '**/src/**/*.csproj'
+      configuration: 'Release'
       versioningScheme: 'byBuildNumber'
+      buildProperties: 'IncludeSymbols=true;SymbolPackageFormat=snupkg'
   - task: DotNetCoreCLI@2
-    displayName: dotnet
+    displayName: dotnet push
     inputs:
       command: 'push'
       packagesToPush: '$(Build.ArtifactStagingDirectory)/*.nupkg'
@@ -60,5 +76,5 @@ jobs:
     displayName: publish artifacts
     inputs:
       PathtoPublish: '$(Build.ArtifactStagingDirectory)'
-      TargetPath: '/EdgeSync.ServiceFramework/$(Build.DefinitionName)/$(Build.BuildNumber)'
+      ArtifactName: 'nuget-packages'
       publishLocation: 'Container'
