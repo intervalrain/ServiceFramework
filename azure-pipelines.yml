@@ -4,6 +4,7 @@ trigger:
 pool:
   vmImage: ubuntu-latest
 
+name: 1.0.$(Rev.r)
 jobs:
 - job: BuildAndTest
   displayName: Build Solution
