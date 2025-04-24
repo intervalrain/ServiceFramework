@@ -1,0 +1,51 @@
+trigger:
+- develop
+
+pool:
+  vmImage: ubuntu-latest
+
+jobs:
+- job: BuildAndTest
+  displayName: Build Solution
+  steps:
+  - task: DotNetCoreCLI@2
+    displayName: dotnet restore
+    inputs:
+      command: 'restore'
+      projects: '**/*.csproj'
+      feedsToUse: 'select'
+      vstsFeed: 'd592cbbf-1bf4-4d80-8f88-e70b1ba73d84/bbd4f7fc-436c-4173-aa8a-a1af2e1a3be7'
+  - task: DotNetCoreCLI@2
+    displayName: dotnet build
+    inputs:
+      command: 'build'
+      projects: '**/*.csproj'
+  # - task: DotNetCoreCLI@2
+  #   displayName: dotnet test
+  #   inputs:
+  #     command: 'test'
+  #     projects: '**/*.Tests.csproj'
+- job: createNugetPackage
+  displayName: Create Nuget Package
+  dependsOn: BuildAndTest
+  condition: succeeded()
+  steps:
+  - task: DotNetCoreCLI@2
+    displayName: dotnet pack
+    inputs:
+      command: 'pack'
+      packagesToPack: '**/src/**/*.csproj'
+      versioningScheme: 'byBuildNumber'
+  - task: DotNetCoreCLI@2
+    displayName: dotnet
+    inputs:
+      command: 'push'
+      packagesToPush: '$(Build.ArtifactStagingDirectory)/*.nupkg'
+      nuGetFeedType: 'internal'
+      publishVstsFeed: 'd592cbbf-1bf4-4d80-8f88-e70b1ba73d84/bbd4f7fc-436c-4173-aa8a-a1af2e1a3be7'
+  - task: PublishBuildArtifacts@1
+    displayName: publish artifacts
+    inputs:
+      PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+      TargetPath: '\\EdgeSync.ServiceFramework\${Build.DefinitionName}\${Build.BuildNumber}'
+      publishLocation: 'Container'
