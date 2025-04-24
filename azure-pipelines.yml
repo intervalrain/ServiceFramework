@@ -4,6 +4,10 @@ trigger:
 pool:
   vmImage: ubuntu-latest
 
+variables:
+  baseVersion: ''
+  fullVersion: ''
+
 jobs:
 - job: BuildAndTest
   displayName: Build Solution
@@ -52,6 +56,35 @@ jobs:
       command: 'build'
       projects: '**/src/**/*.csproj'
       arguments: '--configuration Release'
+  - task: PowerShell@2
+    displayName: get version from common.props
+    inputs:
+      targetType: 'inline'
+      script: |
+        $propsPath = Get-ChildItem -Path "$(Build.SourcesDirectory)" -Filter "common.props" -Recurse | Select-Object -First 1 -ExpandProperty FullName
+        if (-not $propsPath) {
+          Write-Error "Could not find common.props"
+          exit 1
+        }
+        
+        Write-Host "Found common.props at: $propsPath"
+        $propsContent = Get-Content -Path $propsPath -Raw
+        $versionRegex = '<Version>(.*?)<\/Version>'
+        if ($propsContent -match $versionRegex) {
+          $baseVersion = $matches[1]
+          Write-Host "Base version from common.props: $baseVersion"
+          
+          $timestamp = Get-Date -Format "yyMMddHHmmss"
+          $fullVersion = "$baseVersion-$timestamp"
+          Write-Host "Full version with timestamp: $fullVersion"
+          
+          # 設置 pipeline 變數
+          Write-Host "##vso[task.setvariable variable=baseVersion;]$baseVersion"
+          Write-Host "##vso[task.setvariable variable=fullVersion;]$fullVersion"
+        } else {
+          Write-Error "Could not find Version tag in common.props file"
+          exit 1
+        }
   - task: DotNetCoreCLI@2
     displayName: dotnet pack
     inputs:
@@ -59,8 +92,8 @@ jobs:
       packagesToPack: '**/src/**/*.csproj'
       configuration: 'Release'
       packDirectory: '$(Build.ArtifactStagingDirectory)'
-      nobuild: true  # 使用現有的構建結果
-      versioningScheme: 'off'  # 關閉自動版本設置，使用項目文件中的版本
+      nobuild: true
+      buildProperties: 'Version=$(fullVersion)'
   - task: NuGetAuthenticate@1
     displayName: 'NuGet Authenticate'
   - task: DotNetCoreCLI@2
@@ -70,7 +103,6 @@ jobs:
       packagesToPush: '$(Build.ArtifactStagingDirectory)/*.nupkg'
       nuGetFeedType: 'internal'
       publishVstsFeed: 'd592cbbf-1bf4-4d80-8f88-e70b1ba73d84/bbd4f7fc-436c-4173-aa8a-a1af2e1a3be7'
-      arguments: '--skip-duplicate'  # 有重覆版號時跳過
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
   - task: PublishBuildArtifacts@1
