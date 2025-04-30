@@ -37,7 +37,7 @@ public static class ServiceCollectionExtensions
             options.MsgBrokerUrl = options.MsgBrokerUrl;
             options.MsgBusUrl = options.MsgBusUrl;
             options.MsgBrokerCredFile = options.MsgBrokerCredFile;
-            options.MsgBrokerCredFile = options.MsgBusCredFile;
+            options.MsgBusCredFile = options.MsgBusCredFile;
         });
 
         // Register factories
