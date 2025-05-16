@@ -298,6 +298,21 @@ public abstract class JetStreamClient(ILogger<JetStreamClient> logger, INatsConn
     }
 
     /// <summary>
+    /// Request a message to the specified subject using the NATS connection.
+    /// </summary>
+    /// <typeparam name="T">The type of the data to request.</typeparam>
+    /// <param name="subject">The subject to request the message to.</param>
+    /// <param name="data">The data to request.</param>
+    /// <param name="_cancellationToken">The cancellation token to cancel the operation.</param>
+    public async Task<string?> RequestAsync<T>(string subject, T data, CancellationToken cancellationToken = default)
+    {
+        await TryConnectAsync();
+
+        var response = await _natsConnection!.RequestAsync<T, string>(subject, data, cancellationToken: cancellationToken);
+        return response.Data;
+    }
+
+    /// <summary>
     /// Disposes the resources used by the JetStreamClient.
     /// </summary>
     /// <remarks>

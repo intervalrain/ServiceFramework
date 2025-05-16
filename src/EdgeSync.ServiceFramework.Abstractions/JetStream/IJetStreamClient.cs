@@ -79,4 +79,13 @@ public interface IJetStreamClient
     /// <param name="_cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     Task PublishAsync<T>(string subject, T? data, INatsSerialize<T>? _serializer = null, CancellationToken _cancellationToken = default);
+
+    /// <summary>
+    /// Request a message to the specified subject using the NATS connection.
+    /// </summary>
+    /// <typeparam name="T">The type of the data to request.</typeparam>
+    /// <param name="subject">The subject to request the message to.</param>
+    /// <param name="data">The data to request.</param>
+    /// <param name="_cancellationToken">The cancellation token to cancel the operation.</param>
+    Task<string?> RequestAsync<T>(string subject, T data, CancellationToken cancellationToken = default);
 }
