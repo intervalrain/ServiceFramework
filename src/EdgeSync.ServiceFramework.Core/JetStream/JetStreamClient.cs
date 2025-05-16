@@ -167,7 +167,7 @@ public abstract class JetStreamClient(ILogger<JetStreamClient> logger, INatsConn
                 _jsCtx = new NatsJSContext(_natsConnection);
             }
             if (_jsCtx == null) throw new NatsJSException("NatsJSContext is not constructed successfully");
-            
+
             _jStream = await _jsCtx.GetStreamAsync(streamName);
             if (_jStream != null)
             {
@@ -298,12 +298,35 @@ public abstract class JetStreamClient(ILogger<JetStreamClient> logger, INatsConn
     }
 
     /// <summary>
-    /// Request a message to the specified subject using the NATS connection.
+    /// Sends a request message to the specified subject using the NATS connection,
+    /// and awaits a reply with a 30-second timeout. Supports external cancellation via a linked token.
     /// </summary>
-    /// <typeparam name="T">The type of the data to request.</typeparam>
-    /// <param name="subject">The subject to request the message to.</param>
-    /// <param name="data">The data to request.</param>
-    /// <param name="_cancellationToken">The cancellation token to cancel the operation.</param>
+    /// <typeparam name="T">The type of the request data to send.</typeparam>
+    /// <param name="subject">The NATS subject to send the request to.</param>
+    /// <param name="data">The request data to send.</param>
+    /// <param name="cancellationToken">A token that can be used to cancel the request externally.</param>
+    /// <returns>The response data as a string, or <c>null</c> if no response is received.</returns>
+    /// <exception cref="TimeoutException">Thrown when the request exceeds the 30-second timeout.</exception>
+    /// <exception cref="OperationCanceledException">Thrown when the operation is cancelled externally.</exception>
+    /// <example>
+    /// <code>
+    /// var cancellationToken = httpContext.RequestAborted;
+    /// try
+    /// {
+    ///     var reply = await natsService.RequestAsync&lt;MyRequest&gt;(
+    ///         "my.service.subject",
+    ///         new MyRequest { Id = 123 },
+    ///         cancellationToken
+    ///     );
+    ///     Console.WriteLine($"Reply: {reply}");
+    /// }
+    /// catch (TimeoutException)
+    /// {
+    ///     Console.WriteLine("Request timed out.");
+    /// }
+    /// </code>
+    /// </example>
+
     public async Task<string?> RequestAsync<T>(string subject, T data, CancellationToken cancellationToken = default)
     {
         await TryConnectAsync();
