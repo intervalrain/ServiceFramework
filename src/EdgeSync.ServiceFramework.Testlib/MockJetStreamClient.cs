@@ -9,13 +9,17 @@ namespace EdgeSync.ServiceFramework.Testlib;
 
 public abstract class MockJetStreamClient : IJetStreamClient
 {
-    private readonly List<PublishedMessage> _publishedMessages = [];
-    public IReadOnlyList<PublishedMessage> PublishedMessages => _publishedMessages.AsReadOnly();
-    
+    private readonly List<NatsMessage> _publishedMessages = [];
+    public IReadOnlyList<NatsMessage> PublishedMessages => _publishedMessages.AsReadOnly();
     public bool PublishWasCalled { get; private set; }
-    
     public string? LastPublishedSubject { get; private set; }
     public byte[]? LastPublishedData { get; private set; }
+
+    private readonly List<NatsMessage> _requestedMessages = [];
+    public IReadOnlyList<NatsMessage> RequestedMessages => _requestedMessages.AsReadOnly();
+    public bool RequestWasCalled { get; private set; }
+    public string? LastRequestedSubject { get; private set; }
+    public byte[]? LastRequestedData { get; private set; }
 
     public int MaxMsgs => 100;
 
@@ -74,9 +78,9 @@ public abstract class MockJetStreamClient : IJetStreamClient
     /// <summary>
     /// 獲取特定主題的最後一條消息
     /// </summary>
-    public PublishedMessage GetLastMessage(string subject)
+    public NatsMessage GetLastMessage(string subject)
     {
-        return _publishedMessages.FindLast(m => m.Subject == subject) ?? new PublishedMessage("No Message", []);
+        return _publishedMessages.FindLast(m => m.Subject == subject) ?? new NatsMessage("No Message", []);
     }
 
     /// <summary>
@@ -121,7 +125,7 @@ public abstract class MockJetStreamClient : IJetStreamClient
         LastPublishedData = byteData;
         
         // 記錄消息
-        var message = new PublishedMessage(subject, byteData);
+        var message = new NatsMessage(subject, byteData);
         _publishedMessages.Add(message);
         
         // 執行驗證器
@@ -186,12 +190,57 @@ public abstract class MockJetStreamClient : IJetStreamClient
         return Task.CompletedTask;
     }
 
+    public virtual Task<string?> RequestAsync<T>(string subject, T data, CancellationToken cancellationToken = default)
+    {
+        RequestWasCalled = true;
+        LastRequestedSubject = subject;
+        
+        // 將數據轉換為 byte[]
+        byte[] byteData;
+        if (data is byte[] bytes)
+        {
+            byteData = bytes;
+        }
+        else if (data is string str)
+        {
+            byteData = Encoding.UTF8.GetBytes(str);
+        }
+        else if (data == null)
+        {
+            byteData = [];
+        }
+        else
+        {
+            // 默認轉換為 JSON
+            byteData = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(data));
+        }
+        
+        LastRequestedData = byteData;
+        
+        // 記錄消息
+        var message = new NatsMessage(subject, byteData);
+        _requestedMessages.Add(message);
+        
+        // 執行驗證器
+        if (_subjectVerifiers.TryGetValue(subject, out var verifiers))
+        {
+            foreach (var verifier in verifiers)
+            {
+                if (!verifier(subject, byteData))
+                {
+                    throw new VerificationException($"驗證失敗: 主題 {subject} 的消息未通過自定義驗證");
+                }
+            }
+        }
+        
+        return Task.FromResult("This is a mock reply")!;
+    }
 }
 
 /// <summary>
 /// 發布消息記錄類
 /// </summary>
-public class PublishedMessage(string subject, byte[] data)
+public class NatsMessage(string subject, byte[] data)
 {
     public string Subject { get; } = subject;
     public byte[] Data { get; } = data;
