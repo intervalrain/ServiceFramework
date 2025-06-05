@@ -52,7 +52,7 @@ public abstract class ServiceHandler : MessageTransportBase, IDisposable
     public abstract string QueueGroup { get; }
 
     public ILogger<ServiceHandler> Logger { get; }
-    
+
     public ServiceHandler(
         ILogger<ServiceHandler> logger,
         INatsConnection connection,
@@ -64,7 +64,7 @@ public abstract class ServiceHandler : MessageTransportBase, IDisposable
     }
 
     public override async Task StartAsync(CancellationToken cancellationToken)
-{
+    {
         await ConnectAsync(cancellationToken);
         await base.StartAsync(cancellationToken);
     }
@@ -335,7 +335,10 @@ public abstract class ServiceHandler : MessageTransportBase, IDisposable
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task ReplyAsync<T, TR>(ServiceMsgContext<T> svcMsgCtx, TR msg)
     {
-        var replyMsg = JsonSerializer.Serialize(msg);
+        var replyMsg = JsonSerializer.Serialize(msg, new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        });
         Logger.LogInformation($"Replying to message '{svcMsgCtx.ServiceMsg.Subject}' with '{replyMsg}'");
         await svcMsgCtx.ServiceMsg.ReplyAsync(replyMsg);
     }
@@ -495,8 +498,8 @@ public abstract class ServiceHandler : MessageTransportBase, IDisposable
         try
         {
             // Parse message into DTO
-            var method = typeof(T).GetMethod("FromMessage", 
-                BindingFlags.Public | BindingFlags.Static| BindingFlags.FlattenHierarchy,
+            var method = typeof(T).GetMethod("FromMessage",
+                BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy,
                 null,
                 [typeof(byte[])],
                 null);
