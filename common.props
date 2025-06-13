@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
     <LangVersion>latest</LangVersion>
-    <Version>1.0.7</Version>
+    <Version>1.0.8</Version>
     <Authors>Rain Hu, Kevin Chien</Authors>
     <Company>Advantech</Company>
     <AbpProjectType>app</AbpProjectType>

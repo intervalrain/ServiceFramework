@@ -31,7 +31,10 @@ public abstract class BasicModelDto
 
     public static string Serialize<TValue>(TValue value)
     {
-        return JsonSerializer.Serialize(value);
+        return JsonSerializer.Serialize(value, new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        });
     }
 
     public override string ToString()
