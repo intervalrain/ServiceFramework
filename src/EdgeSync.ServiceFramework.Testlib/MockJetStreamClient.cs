@@ -11,6 +11,11 @@ public abstract class MockJetStreamClient : IJetStreamClient
 {
     private readonly List<NatsMessage> _publishedMessages = [];
     public IReadOnlyList<NatsMessage> PublishedMessages => _publishedMessages.AsReadOnly();
+
+    /// <summary>
+    /// Mock NATS connection for testing
+    /// </summary>
+    public INatsConnection NatsConnection { get; } = null!; // Mock implementation
     public bool PublishWasCalled { get; private set; }
     public string? LastPublishedSubject { get; private set; }
     public byte[]? LastPublishedData { get; private set; }

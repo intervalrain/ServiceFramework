@@ -8,18 +8,23 @@ using NATS.Net;
 
 namespace EdgeSync.ServiceFramework.JetStream;
 
-public class MsgBrokerJetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFactory natsConnectionFactory)
-    : JetStreamClient(logger, natsConnectionFactory), IBrokerJetStreamClient
+public class MsgBrokerJetStreamClient : JetStreamClient, IBrokerJetStreamClient
 {
-    public override string Url { get; } = ServiceConfig.MsgBrokerUrl;
-    public override string UserCredFilePath { get; } = ServiceConfig.MsgBrokerCredFile;
+    public MsgBrokerJetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFactory natsConnectionFactory) : base(logger, natsConnectionFactory)
+    {
+        Url = ServiceConfig.MsgBrokerUrl;
+        UserCredFilePath = ServiceConfig.MsgBrokerCredFile;
+    }
 }
 
-public class MsgBusJetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFactory natsConnectionFactory)
-    : JetStreamClient(logger, natsConnectionFactory), IBusJetStreamClient
+public class MsgBusJetStreamClient : JetStreamClient, IBusJetStreamClient
 {
-    public override string Url { get; } = ServiceConfig.MsgBusUrl;
-    public override string UserCredFilePath { get; } = ServiceConfig.MsgBusCredFile;
+    public MsgBusJetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFactory natsConnectionFactory) : base(logger, natsConnectionFactory)
+    {
+        Url = ServiceConfig.MsgBusUrl;
+        UserCredFilePath = ServiceConfig.MsgBusCredFile;
+    }
+
 }
 
 /// <summary>
@@ -29,9 +34,11 @@ public class MsgBusJetStreamClient(ILogger<JetStreamClient> logger, INatsConnect
 /// Initializes a new instance of the <see cref="JetStreamClient"/> class.
 /// </remarks>
 /// <param name="logger">The logger instance to use for logging.</param>
-public abstract class JetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFactory natsConnectionFactory) : IDisposable, IJetStreamClient
+/// <param name="natsConnectionFactory">The connection factory for create nats connection instance.</param>
+public class JetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFactory natsConnectionFactory) : IDisposable, IJetStreamClient
 {
-    private INatsConnection? _natsConnection;
+    public INatsConnection? NatsConnection { get; private set; }
+
     private INatsJSContext? _jsCtx;
     private INatsJSStream? _jStream;
 
@@ -44,8 +51,8 @@ public abstract class JetStreamClient(ILogger<JetStreamClient> logger, INatsConn
 
     private readonly INatsConnectionFactory _natsConnectionFactory = natsConnectionFactory;
 
-    public abstract string Url { get; }
-    public abstract string UserCredFilePath { get; }
+    public string Url { get; set; } = string.Empty;
+    public string UserCredFilePath { get; set; } = string.Empty;
 
     public string StreamName { get; set; } = "sf_stream";
 
@@ -59,12 +66,12 @@ public abstract class JetStreamClient(ILogger<JetStreamClient> logger, INatsConn
             return;
         }
 
-        if (_natsConnection != null)
+        if (NatsConnection != null)
         {
-            await _natsConnection.DisposeAsync();
+            await NatsConnection.DisposeAsync();
         }
 
-        _natsConnection = await _natsConnectionFactory.CreateConnectionAsync(Url, UserCredFilePath);
+        NatsConnection = await _natsConnectionFactory.CreateConnectionAsync(Url, UserCredFilePath);
     }
 
     /// <summary>
@@ -73,7 +80,7 @@ public abstract class JetStreamClient(ILogger<JetStreamClient> logger, INatsConn
     /// <returns>True if connected, otherwise false.</returns>
     public bool IsConnected()
     {
-        return _natsConnection != null && _natsConnection.ConnectionState == NatsConnectionState.Open;
+        return NatsConnection != null && NatsConnection.ConnectionState == NatsConnectionState.Open;
     }
 
     /// <summary>
@@ -81,10 +88,10 @@ public abstract class JetStreamClient(ILogger<JetStreamClient> logger, INatsConn
     /// </summary>
     public void Disconnect()
     {
-        if (_natsConnection != null)
+        if (NatsConnection != null)
         {
-            _natsConnection.DisposeAsync().AsTask().GetAwaiter().GetResult();
-            _natsConnection = null;
+            NatsConnection.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            NatsConnection = null;
         }
     }
 
@@ -98,7 +105,7 @@ public abstract class JetStreamClient(ILogger<JetStreamClient> logger, INatsConn
     {
         await TryConnectAsync();
 
-        var kvCtx = _natsConnection?.CreateKeyValueStoreContext();
+        var kvCtx = NatsConnection?.CreateKeyValueStoreContext();
         if (kvCtx == null) throw new NatsKVException("No connection to NATS");
         return await kvCtx.CreateStoreAsync(bucket);
     }
@@ -110,7 +117,7 @@ public abstract class JetStreamClient(ILogger<JetStreamClient> logger, INatsConn
 
         await TryConnectAsync();
 
-        if (_jsCtx == null && _natsConnection != null) _jsCtx = new NatsJSContext(_natsConnection);
+        if (_jsCtx == null && NatsConnection != null) _jsCtx = new NatsJSContext(NatsConnection);
         if (_jsCtx == null) throw new NatsJSException("NatsJSContext is not constructed successfully");
         var cfg = new StreamConfig(name: StreamName, subjects: Array.Empty<string>());
 
@@ -144,7 +151,7 @@ public abstract class JetStreamClient(ILogger<JetStreamClient> logger, INatsConn
 
         await TryConnectAsync();
 
-        _logger.LogInformation("{_serviceUUID} Checked _natsConnection: {ConnectionState}", _serviceUUID, _natsConnection?.ConnectionState);
+        _logger.LogInformation("{_serviceUUID} Checked _natsConnection: {ConnectionState}", _serviceUUID, NatsConnection?.ConnectionState);
 
         var ackWait = TimeSpan.FromMilliseconds(_ackWait);
         var ackPolicy = ConsumerConfigAckPolicy.Explicit;
@@ -162,9 +169,9 @@ public abstract class JetStreamClient(ILogger<JetStreamClient> logger, INatsConn
 
         try
         {
-            if (_jsCtx == null && _natsConnection != null)
+            if (_jsCtx == null && NatsConnection != null)
             {
-                _jsCtx = new NatsJSContext(_natsConnection);
+                _jsCtx = new NatsJSContext(NatsConnection);
             }
             if (_jsCtx == null) throw new NatsJSException("NatsJSContext is not constructed successfully");
 
@@ -267,19 +274,19 @@ public abstract class JetStreamClient(ILogger<JetStreamClient> logger, INatsConn
     /// <typeparam name="T">The type of the data to publish.</typeparam>
     /// <param name="subject">The subject to publish the message to.</param>
     /// <param name="data">The data to publish.</param>
-    /// <param name="_serializer">The serializer to use for the data.</param>
-    /// <param name="_cancellationToken">The cancellation token to cancel the operation.</param>
+    /// <param name="serializer">The serializer to use for the data.</param>
+    /// <param name="cancellationToken">The cancellation token to cancel the operation.</param>
     /// <exception cref="Exception">Thrown if the client is not connected to JetStream.</exception>
-    public async Task PublishAsync<T>(string subject, T? data, INatsSerialize<T>? _serializer = null, CancellationToken _cancellationToken = default(CancellationToken))
+    public async Task PublishAsync<T>(string subject, T? data, INatsSerialize<T>? serializer = null, CancellationToken cancellationToken = default)
     {
         await TryConnectAsync();
 
         if (_jsCtx == null)
         {
-            _jsCtx = new NatsJSContext(_natsConnection!);
+            _jsCtx = new NatsJSContext(NatsConnection!);
         }
 
-        await _jsCtx.PublishAsync(subject, data, serializer: _serializer, cancellationToken: _cancellationToken);
+        await _jsCtx.PublishAsync(subject, data, serializer: serializer, cancellationToken: cancellationToken);
     }
 
     /// <summary>
@@ -288,13 +295,13 @@ public abstract class JetStreamClient(ILogger<JetStreamClient> logger, INatsConn
     /// <typeparam name="T">The type of the data to publish.</typeparam>
     /// <param name="subject">The subject to publish the message to.</param>
     /// <param name="data">The data to publish.</param>
-    /// <param name="_serializer">The serializer to use for the data.</param>
-    /// <param name="_cancellationToken">The cancellation token to cancel the operation.</param>
-    public async Task NatsPublishAsync<T>(string subject, T? data, INatsSerialize<T>? _serializer = null, CancellationToken _cancellationToken = default)
+    /// <param name="serializer">The serializer to use for the data.</param>
+    /// <param name="cancellationToken">The cancellation token to cancel the operation.</param>
+    public async Task NatsPublishAsync<T>(string subject, T? data, INatsSerialize<T>? serializer = null, CancellationToken cancellationToken = default)
     {
         await TryConnectAsync();
 
-        await _natsConnection!.PublishAsync(subject, data, serializer: _serializer!, cancellationToken: _cancellationToken);
+        await NatsConnection!.PublishAsync(subject, data, serializer: serializer!, cancellationToken: cancellationToken);
     }
 
     /// <summary>
@@ -326,12 +333,19 @@ public abstract class JetStreamClient(ILogger<JetStreamClient> logger, INatsConn
     /// }
     /// </code>
     /// </example>
-
     public async Task<string?> RequestAsync<T>(string subject, T data, CancellationToken cancellationToken = default)
     {
         await TryConnectAsync();
 
-        var response = await _natsConnection!.RequestAsync<T, string>(subject, data, cancellationToken: cancellationToken);
+        var response = await NatsConnection!.RequestAsync<T, string>(subject, data, cancellationToken: cancellationToken);
+        return response.Data;
+    }
+
+        public async Task<TR?> RequestAsync<T, TR>(string subject, T data, CancellationToken cancellationToken = default)
+    {
+        await TryConnectAsync();
+
+        var response = await NatsConnection!.RequestAsync<T, TR>(subject, data, cancellationToken: cancellationToken);
         return response.Data;
     }
 
@@ -349,8 +363,8 @@ public abstract class JetStreamClient(ILogger<JetStreamClient> logger, INatsConn
             _jStream = null;
         if (_jsCtx != null)
             _jsCtx = null;
-        if (_natsConnection != null)
-            _natsConnection.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        _natsConnection = null;
+        if (NatsConnection != null)
+            NatsConnection.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        NatsConnection = null;
     }
 }

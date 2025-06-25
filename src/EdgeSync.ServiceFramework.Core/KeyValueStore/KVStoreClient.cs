@@ -36,6 +36,7 @@ public class KVStoreClient : MsgBusJetStreamClient, IKVStore
         await kv.PutAsync(key, value);
     }
 
+    /// <summary>
     /// Asynchronously sets a value in the specified bucket with the given key.
     /// </summary>
     /// <typeparam name="T">The type of the value to be stored.</typeparam>
@@ -51,11 +52,11 @@ public class KVStoreClient : MsgBusJetStreamClient, IKVStore
         {
             await kv.PutAsync(key, JsonSerializer.SerializeToUtf8Bytes(value));
         }
-        else 
+        else
         {
             await kv.PutAsync(key, value, serializer);
         }
-        
+
     }
 
     /// <summary>
@@ -70,7 +71,7 @@ public class KVStoreClient : MsgBusJetStreamClient, IKVStore
     /// <returns>A task that represents the asynchronous operation. The task result contains the value of type <typeparamref name="T"/> if found; otherwise, default value of <typeparamref name="T"/>.</returns>
     public async Task<T?> GetValueAsync<T>(string bucket, string key, ulong revision = 0uL,
                                         INatsDeserialize<T>? serializer = null,
-                                        CancellationToken cancellationToken = default(CancellationToken))
+                                        CancellationToken cancellationToken = default)
     {
         var kv = await GetKvStore(bucket);
         var val = await kv.GetEntryAsync<T>(key, revision, serializer, cancellationToken);
