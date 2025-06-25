@@ -110,62 +110,36 @@ public class JetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFac
         return await kvCtx.CreateStoreAsync(bucket);
     }
 
-    public async Task CreateStream(string streamName)
-    {
-
-        StreamName = streamName;
-
-        await TryConnectAsync();
-
-        if (_jsCtx == null && NatsConnection != null) _jsCtx = new NatsJSContext(NatsConnection);
-        if (_jsCtx == null) throw new NatsJSException("NatsJSContext is not constructed successfully");
-        var cfg = new StreamConfig(name: StreamName, subjects: Array.Empty<string>());
-
-        try
-        {
-            _jStream = await _jsCtx.GetStreamAsync(StreamName);
-            if (_jStream != null)
-            {
-                _logger.LogInformation("Stream '{StreamName}' exists, updating configuration.", StreamName);
-                _jStream = await _jsCtx.UpdateStreamAsync(cfg);
-            }
-        }
-        catch (NatsJSException ex) when (ex.Message.Contains("stream not found"))
-        {
-            _logger.LogInformation("Stream '{StreamName}' not found, create new stream.", StreamName);
-            _jStream = await _jsCtx.CreateStreamAsync(cfg);
-        }
-    }
-
     /// <summary>
     /// Creates a stream consumer in JetStream.
     /// </summary>
-    /// <param name="consumerName">The name of the consumer.</param>
-    /// <param name="streamName">The name of the stream.</param>
-    /// <param name="subject">The subject to consume messages from.</param>
+    /// <param name="consumerCfg">The configuration options for the consumer.</param>
+    /// <param name="cfgOptions">The configuration options for the jet stream.</param>
     /// <returns>The created stream consumer.</returns>
     /// <exception cref="Exception">Thrown if the client is not connected to NATS.</exception>
-    public async Task<INatsJSConsumer> CreateStreamConsumerAsync(string consumerName, string streamName, string subject)
+    public async Task<INatsJSConsumer> CreateStreamConsumerAsync(ConsumerConfigOptions consumerCfg, JetStreamConfigOptions cfgOptions)
     {
-        StreamName = streamName;
-
         await TryConnectAsync();
 
-        _logger.LogInformation("{_serviceUUID} Checked _natsConnection: {ConnectionState}", _serviceUUID, NatsConnection?.ConnectionState);
-
-        var ackWait = TimeSpan.FromMilliseconds(_ackWait);
-        var ackPolicy = ConsumerConfigAckPolicy.Explicit;
-        var subjects = Array.Empty<string>();
-
-        if (subject != null)
+        if (cfgOptions.Name == null || cfgOptions.Name.Trim().Length == 0)
         {
-            subjects = [subject];
+            throw new ArgumentException("Stream name must be provided in JetStreamConfigOptions", nameof(cfgOptions));
         }
 
-        var cfg = new StreamConfig(name: streamName, subjects: subjects)
+        if (cfgOptions.Subjects == null || cfgOptions.Subjects.Count() == 0)
         {
-            // Retention = StreamConfigRetention.Workqueue,
-        };
+            throw new ArgumentException("At least one subject must be provided in JetStreamConfigOptions", nameof(cfgOptions));
+        }
+
+        if (consumerCfg.Name == null|| consumerCfg.Name.Trim().Length == 0)
+        {
+            throw new ArgumentException("Consumer name must be provided in ConsumerConfig", nameof(consumerCfg));
+        }
+
+        var streamName = cfgOptions.Name ?? "edgeSync_stream";
+        StreamName = streamName;
+
+        _logger.LogInformation("{_serviceUUID} Checked _natsConnection: {ConnectionState}", _serviceUUID, NatsConnection?.ConnectionState);
 
         try
         {
@@ -179,39 +153,21 @@ public class JetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFac
             if (_jStream != null)
             {
                 _logger.LogInformation("Stream '{streamName}' exists, updating configuration.", streamName);
-                _jStream = await _jsCtx.UpdateStreamAsync(cfg);
+                _jStream = await _jsCtx.UpdateStreamAsync(cfgOptions);
             }
         }
         catch (NatsJSException ex) when (ex.Message.Contains("stream not found"))
         {
             _logger.LogInformation("Stream '{streamName}' not found, create new stream.", streamName);
-            _jStream = await _jsCtx!.CreateStreamAsync(cfg);
+            _jStream = await _jsCtx!.CreateStreamAsync(cfgOptions);
         }
 
-        var consumer = await _jStream!.CreateOrUpdateConsumerAsync(new ConsumerConfig(consumerName)
-        {
-            AckPolicy = ackPolicy,
-            AckWait = ackWait,
-        });
+        var consumer = await _jStream!.CreateOrUpdateConsumerAsync(consumerCfg);
 
-        _logger.LogInformation("{_serviceUUID} Created consumer: {consumerName}, stream: {streamName}, subject: {subject}", _serviceUUID, consumerName, streamName, subject);
+        _logger.LogInformation("{_serviceUUID} Created consumer: {consumerName}, stream: {streamName}, subjects: {subject}", _serviceUUID, consumerCfg.Name, cfgOptions.Name, cfgOptions.Subjects);
 
         return consumer;
     }
-
-    // public void EnsureJetStreamContext()
-    // {
-    //     if (_natsConnection == null || !IsConnected())
-    //     {
-    //         Connect();
-    //     }
-
-    //     if (_jsCtx == null)
-    //     {
-    //         _jsCtx = new NatsJSContext(_natsConnection);
-    //         _logger.LogInformation("{UUID} Created new JetStream context", _serviceUUID);
-    //     }
-    // }
 
     /// <summary>
     /// Consumes messages from a JetStream consumer.

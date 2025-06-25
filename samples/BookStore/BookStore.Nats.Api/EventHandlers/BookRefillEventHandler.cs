@@ -6,6 +6,8 @@ using EdgeSync.ServiceFramework;
 using EdgeSync.ServiceFramework.JetStream;
 using Microsoft.Extensions.Logging;
 
+using NATS.Client.JetStream.Models;
+
 namespace BookStore.Nats.Api.EventHandlers;
 
 public class BookRefillEventHandler : BaseEventHandler
@@ -30,6 +32,23 @@ public class BookRefillEventHandler : BaseEventHandler
     protected override string StreamName => "bookstore-stream";
     protected override string ConsumerName => "book-refill-consumer";
 
+    protected override JetStreamConfigOptions JStreamCfgOpts { get; set; } = new JetStreamConfigOptions
+    {
+        MaxMsgs = -1,
+        MaxBytes = -1,
+        MaxAge = TimeSpan.FromDays(1),
+        Description = "Bookstore events stream for book refill events",
+        Retention = StreamConfigRetention.Limits,
+        Storage = StreamConfigStorage.File,
+    };
+
+    protected override ConsumerConfigOptions ConsumerCfgOpts { get; set; } = new ConsumerConfigOptions()
+    {
+        AckPolicy = ConsumerConfigAckPolicy.Explicit,
+        ReplayPolicy = ConsumerConfigReplayPolicy.Instant,
+        MaxAckPending = -1,
+    };
+
     protected override async Task HandleInputEventCore(byte[] message, string subject)
     {
         try
@@ -44,20 +63,20 @@ public class BookRefillEventHandler : BaseEventHandler
                 return;
             }
 
-            Logger.LogInformation("Processing book refill event for BookId: {BookId}, Quantity: {Quantity}, Reason: {Reason}", 
+            Logger.LogInformation("Processing book refill event for BookId: {BookId}, Quantity: {Quantity}, Reason: {Reason}",
                 refillEvent.BookId, refillEvent.RefillQuantity, refillEvent.Reason);
 
             var result = await _bookAppService.RefillStockAsync(refillEvent.BookId, refillEvent.RefillQuantity);
-            
+
             if (result.IsError)
             {
                 var errorMessages = string.Join(", ", result.Errors.Select(e => e.Description));
-                Logger.LogError("Failed to refill stock for BookId: {BookId}. Errors: {Errors}", 
+                Logger.LogError("Failed to refill stock for BookId: {BookId}. Errors: {Errors}",
                     refillEvent.BookId, errorMessages);
                 return;
             }
 
-            Logger.LogInformation("Successfully refilled stock for BookId: {BookId}. New stock level: {Stock}", 
+            Logger.LogInformation("Successfully refilled stock for BookId: {BookId}. New stock level: {Stock}",
                 refillEvent.BookId, result.Value.Stock);
         }
         catch (JsonException ex)

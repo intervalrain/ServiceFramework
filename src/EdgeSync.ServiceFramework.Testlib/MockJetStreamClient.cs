@@ -169,6 +169,11 @@ public abstract class MockJetStreamClient : IJetStreamClient
         throw new NotImplementedException();
     }
 
+    public virtual Task<INatsJSConsumer> CreateStreamConsumerAsync(ConsumerConfigOptions consumerCfg, JetStreamConfigOptions cfgOptions)
+    {
+        throw new NotImplementedException();
+    }
+
     public virtual void Disconnect()
     {
         // 默認實現，子類可以根據需要覆寫

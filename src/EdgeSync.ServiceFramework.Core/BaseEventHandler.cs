@@ -17,7 +17,7 @@ namespace EdgeSync.ServiceFramework;
 public abstract class BaseEventHandler : MessageTransportBase
 {
     /// <summary>
-    /// Subject name for the JetStream consumer.
+    /// Subject name for the JetStream consumer. Could be a single subject or a comma-separated list of subjects.
     /// </summary>
     protected abstract string SubjectName { get; }
 
@@ -36,6 +36,22 @@ public abstract class BaseEventHandler : MessageTransportBase
     protected string DeviceId = string.Empty;
 
     /// <summary>
+    ///  Lazy initialization of the default JetStream client. app can override this to use a different client.
+    /// </summary>
+    /// <remarks>
+    /// This is used to provide a default JetStream client for the event handler.
+    /// </remarks>
+    protected abstract JetStreamConfigOptions JStreamCfgOpts { get; set; }
+
+    /// <summary>
+    /// Lazy initialization of the consumer configuration options.
+    /// </summary>
+    /// <remarks>
+    /// This is used to configure the consumer settings such as durable name, ack policy, etc.
+    /// </remarks>
+    protected abstract ConsumerConfigOptions ConsumerCfgOpts { get; set;}
+
+    /// <summary>
     /// Legacy constructor for backward compatibility
     /// </summary>
     public BaseEventHandler(
@@ -45,6 +61,13 @@ public abstract class BaseEventHandler : MessageTransportBase
     {
         DefaultLazy = new Lazy<IJetStreamClient>(() => broker); // Use broker as default for backward compatibility
         Logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+        JStreamCfgOpts = JStreamCfgOpts ?? new JetStreamConfigOptions();
+        JStreamCfgOpts.Name = StreamName;
+        JStreamCfgOpts.Subjects = SubjectName.Split(',').Select(s => s.Trim()).ToArray();
+        ConsumerCfgOpts = ConsumerCfgOpts ?? new ConsumerConfigOptions();
+        ConsumerCfgOpts.DurableName = ConsumerName;
+        ConsumerCfgOpts.Name = ConsumerName;
     }
 
     /// <summary>
@@ -60,6 +83,12 @@ public abstract class BaseEventHandler : MessageTransportBase
         string connectionName = "Broker") : base(factory, connectionName)
     {
         Logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        JStreamCfgOpts = JStreamCfgOpts ?? new JetStreamConfigOptions();
+        JStreamCfgOpts.Name = StreamName;
+        JStreamCfgOpts.Subjects = SubjectName.Split(',').Select(s => s.Trim()).ToArray();
+        ConsumerCfgOpts = ConsumerCfgOpts ?? new ConsumerConfigOptions();
+        ConsumerCfgOpts.DurableName = ConsumerName;
+        ConsumerCfgOpts.Name = ConsumerName;
     }
 
     /// <summary>
@@ -138,12 +167,12 @@ public abstract class BaseEventHandler : MessageTransportBase
                         retryAttempt, maxRetryAttempts, ConsumerName);
                 }
 
-                var consumer = await Broker.CreateStreamConsumerAsync(ConsumerName, StreamName, SubjectName);
+                var consumer = await Broker.CreateStreamConsumerAsync(ConsumerCfgOpts, JStreamCfgOpts);
                 
                 // Reset retry counter on successful connection
                 if (retryAttempt > 0)
                 {
-                    Logger.LogInformation("Event handler successfully reconnected for consumer {ConsumerName} after {RetryAttempt} attempts", 
+                    Logger.LogInformation("Event handler successfully reconnected for consumer {ConsumerName} after {RetryAttempt} attempts",
                         ConsumerName, retryAttempt);
                     retryAttempt = 0;
                 }
