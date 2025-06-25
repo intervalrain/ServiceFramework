@@ -32,11 +32,10 @@ public interface IJetStreamClient
     /// <summary>
     /// Creates a stream consumer asynchronously.
     /// </summary>
-    /// <param name="consumerName">The name of the consumer.</param>
-    /// <param name="streamName">The name of the stream.</param>
-    /// <param name="subject">The subject to consume messages from.</param>
+    /// <param name="consumerCfg">The consumer configuration options.</param>
+    /// <param name="cfgOptions">The JetStream configuration options.</param>
     /// <returns>A task representing the asynchronous operation, with the created consumer as the result.</returns>
-    Task<INatsJSConsumer> CreateStreamConsumerAsync(string consumerName, string streamName, string subject);
+    Task<INatsJSConsumer> CreateStreamConsumerAsync(ConsumerConfigOptions consumerCfg, JetStreamConfigOptions cfgOptions);
 
     Task TryConnectAsync();
 

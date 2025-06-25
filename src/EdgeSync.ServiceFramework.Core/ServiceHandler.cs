@@ -445,7 +445,8 @@ public abstract class ServiceHandler : MessageTransportBase, IDisposable
 
         var replyMsg = JsonSerializer.Serialize(msg, new JsonSerializerOptions
         {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DictionaryKeyPolicy = JsonNamingPolicy.CamelCase,
         });
 
         Logger.LogDebug("Replying to message '{Subject}' with data length: {Length}",
