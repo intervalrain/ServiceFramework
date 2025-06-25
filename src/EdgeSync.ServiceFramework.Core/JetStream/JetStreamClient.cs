@@ -233,7 +233,7 @@ public class JetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFac
     /// <param name="serializer">The serializer to use for the data.</param>
     /// <param name="cancellationToken">The cancellation token to cancel the operation.</param>
     /// <exception cref="Exception">Thrown if the client is not connected to JetStream.</exception>
-    public async Task PublishAsync<T>(string subject, T? data, INatsSerialize<T>? serializer = null, CancellationToken cancellationToken = default)
+    public async Task<PubAckResponse> PublishAsync<T>(string subject, T? data, INatsSerialize<T>? serializer = null, CancellationToken cancellationToken = default)
     {
         await TryConnectAsync();
 
@@ -242,7 +242,7 @@ public class JetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFac
             _jsCtx = new NatsJSContext(NatsConnection!);
         }
 
-        await _jsCtx.PublishAsync(subject, data, serializer: serializer, cancellationToken: cancellationToken);
+        return await _jsCtx.PublishAsync(subject, data, serializer: serializer, cancellationToken: cancellationToken);
     }
 
     /// <summary>
