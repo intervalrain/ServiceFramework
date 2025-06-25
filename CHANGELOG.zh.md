@@ -9,7 +9,7 @@
 
 ## [1.1.2] - 2025-06-25
 ### 新增功能
-- **Jet-Stream Ack 模式**: 提供 `PubAckResponse` 作為回傳值。
+- **Jet-Stream Ack 模式**: 提供 `PubAckResponse` 作為 `PublishAsync` 的回傳值。
 
 ## [1.1.1] - 2025-06-25
 ### 新增功能
