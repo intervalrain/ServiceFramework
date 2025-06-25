@@ -94,6 +94,7 @@ jobs:
       packDirectory: '$(Build.ArtifactStagingDirectory)'
       nobuild: true
       buildProperties: 'Version=$(fullVersion);IncludeSymbols=true;SymbolPackageFormat=snupkg'
+      arguments: '--property:PackOnlyPackableProjects=true' # ignore the sample code pacakges.
   - task: NuGetAuthenticate@1
     displayName: 'NuGet Authenticate'
   - task: DotNetCoreCLI@2
