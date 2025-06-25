@@ -127,6 +127,29 @@ public class BookRefillEventHandler : BaseEventHandler
     }
 }
 ```
+#### Advanced Configuration: `JetStreamConfigOptions` and `ConsumerConfigOptions`
++ Overwrite `JStreamCfgOpts` and `ConsumerCfgOpts` in the subclass of BaseEventHandler.
+```cs
+public class BookRefillEventHandler : BaseEventHandler
+{
+    protected override JetStreamConfigOptions JStreamCfgOpts { get; set; } = new JetStreamConfigOptions
+    {
+        MaxMsgs = -1,
+        MaxBytes = -1,
+        MaxAge = TimeSpan.FromDays(1),
+        Description = "Bookstore events stream for book refill events",
+        Retention = StreamConfigRetention.Limits,
+        Storage = StreamConfigStorage.File,
+    };
+
+    protected override ConsumerConfigOptions ConsumerCfgOpts { get; set; } = new ConsumerConfigOptions()
+    {
+        AckPolicy = ConsumerConfigAckPolicy.Explicit,
+        ReplayPolicy = ConsumerConfigReplayPolicy.Instant,
+        MaxAckPending = -1,
+    };
+}
+```
 
 ### NATS Client (Multi-Connection + Serialization)
 ```csharp

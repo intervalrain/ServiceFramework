@@ -9,9 +9,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2025-06-25
+### 新增功能
+- **Stream, Consumer 配置**: Added `JetStreamConfigOptions` and `ConsumerConfigOptions` configurations.
 
-## [1.1.0] - 2024-12-25
-
+## [1.1.0] - 2025-06-25
 ### Added
 - **Multi-Connection Support**: Support for multiple named NATS connections instead of fixed Bus/Broker pattern
 - **Fluent API**: New `AddServiceFramework` method with fluent configuration API supporting method chaining

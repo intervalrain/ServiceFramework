@@ -130,6 +130,30 @@ public class BookRefillEventHandler : BaseEventHandler
     }
 }
 ```
+#### 進階配置 `JetStreamConfigOptions` 與 `ConsumerConfigOptions`
++ 直接在類別下進行 `JStreamCfgOpts` 與 `ConsumerCfgOpts` 的覆寫。
+```cs
+public class BookRefillEventHandler : BaseEventHandler
+{
+
+    protected override JetStreamConfigOptions JStreamCfgOpts { get; set; } = new JetStreamConfigOptions
+    {
+        MaxMsgs = -1,
+        MaxBytes = -1,
+        MaxAge = TimeSpan.FromDays(1),
+        Description = "Bookstore events stream for book refill events",
+        Retention = StreamConfigRetention.Limits,
+        Storage = StreamConfigStorage.File,
+    };
+
+    protected override ConsumerConfigOptions ConsumerCfgOpts { get; set; } = new ConsumerConfigOptions()
+    {
+        AckPolicy = ConsumerConfigAckPolicy.Explicit,
+        ReplayPolicy = ConsumerConfigReplayPolicy.Instant,
+        MaxAckPending = -1,
+    };
+}
+```
 
 ### NATS 客戶端（多連接 + 序列化）
 ```csharp
