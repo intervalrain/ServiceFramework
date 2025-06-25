@@ -1,19 +1,19 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-<Import Project="..\..\common.props" />
+  <Import Project="..\..\common.props" />
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <PackageId>EdgeSync.ServiceFramework.Core</PackageId>
     <Description>An integrated service handler implementation for NATS</Description>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageTags>edgesync;serviceframework;dependencyinjection;nats;advantech;iot</PackageTags>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <IncludeSource>true</IncludeSource>
-    <Nullable>enable</Nullable>
-    <RootNamespace>EdgeSync.ServiceFramework</RootNamespace>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Google.Protobuf" Version="3.31.1" />
     <PackageReference Include="NATS.NET" Version="2.5.12" />
   </ItemGroup>
 

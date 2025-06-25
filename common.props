@@ -1,25 +1,20 @@
 <Project>
   <PropertyGroup>
     <LangVersion>latest</LangVersion>
-    <Version>1.0.8</Version>
+    <Version>1.1.0</Version>
     <Authors>Rain Hu, Kevin Chien</Authors>
     <Company>Advantech</Company>
-    <AbpProjectType>app</AbpProjectType>
+    
+    <Product>EdgeSync ServiceFramework</Product>
+    <Copyright>Copyright © Advantech 2025</Copyright>
+    <PackageProjectUrl>https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edgesync_service_framework</PackageProjectUrl>
+    <RepositoryUrl>https://dev.azure.com/Advantech-EBO/IoT%20Platform/_git/edgesync_service_framework</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
-
-  <Target Name="SetBuildTimeStamp" BeforeTargets="GenerateAssemblyInfo">
-    <PropertyGroup>
-      <TimeStamp>$([System.DateTime]::Now.ToString("yyyyMMddHHmmss"))</TimeStamp>
-    </PropertyGroup>
-  </Target>
-
-  <Target Name="NoWarnOnRazorViewImportedTypeConflicts" BeforeTargets="RazorCoreCompile">
-    <PropertyGroup>
-      <NoWarn>$(NoWarn);0436</NoWarn>
-    </PropertyGroup>
-  </Target>
-
-  <ItemGroup>
-    <Content Remove="$(UserProfile)\.nuget\packages\*\*\contentFiles\any\*\*.abppkg*" />
-  </ItemGroup>
 </Project>

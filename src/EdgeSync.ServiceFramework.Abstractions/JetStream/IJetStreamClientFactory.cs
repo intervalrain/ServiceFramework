@@ -22,7 +22,7 @@ public interface IJetStreamClientFactory
     /// <summary>
     /// Creates the appropriate JetStream client based on the client type
     /// </summary>
-    /// <param name="clientType">The type of client to create</param>
+    /// <param name="name">The name of client to create</param>
     /// <returns>A JetStreamClient instance</returns>
-    IJetStreamClient CreateClient(JetStreamClientType clientType);
+    IJetStreamClient CreateClient(string name);
 }

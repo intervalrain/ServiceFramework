@@ -12,18 +12,9 @@ namespace EdgeSync.ServiceFramework;
 
 /// <summary>
 /// Base class for handling events in the ShadowAgent application.
-/// Inherits from <see cref="BackgroundService"/>.
+/// Inherits from <see cref="MessageTransportBase"/>.
 /// </summary>
-/// <remarks>
-/// Initializes a new instance of the <see cref="BaseEventHandler"/> class.
-/// </remarks>
-/// <param name="logger">Logger instance.</param>
-/// <param name="jetStreamClient">JetStream client instance.</param>
-public abstract class BaseEventHandler(
-    ILogger<BaseEventHandler> logger,
-    IBrokerJetStreamClient broker,
-    IBusJetStreamClient bus)
-    : MessageTransportBase(broker, bus)
+public abstract class BaseEventHandler : MessageTransportBase
 {
     /// <summary>
     /// Subject name for the JetStream consumer.
@@ -39,10 +30,37 @@ public abstract class BaseEventHandler(
     /// Consumer name for the JetStream consumer.
     /// </summary>
     protected abstract string ConsumerName { get; }
-    public ILogger<BaseEventHandler> Logger { get; } = logger;
+    public ILogger<BaseEventHandler> Logger { get; }
     protected string Protocol = string.Empty;
     protected string GroupId = string.Empty;
     protected string DeviceId = string.Empty;
+
+    /// <summary>
+    /// Legacy constructor for backward compatibility
+    /// </summary>
+    public BaseEventHandler(
+        ILogger<BaseEventHandler> logger,
+        IBrokerJetStreamClient broker,
+        IBusJetStreamClient bus) : base(broker, bus)
+    {
+        DefaultLazy = new Lazy<IJetStreamClient>(() => broker); // Use broker as default for backward compatibility
+        Logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    /// <summary>
+    /// New constructor allowing custom connection name for Broker
+    /// Bus still uses default "bus" connection
+    /// </summary>
+    /// <param name="logger">Logger instance</param>
+    /// <param name="factory">JetStream client factory</param>
+    /// <param name="connectionName">Connection name for Broker (defaults to "broker" if not specified)</param>
+    public BaseEventHandler(
+        ILogger<BaseEventHandler> logger,
+        IJetStreamClientFactory factory,
+        string connectionName = "Broker") : base(factory, connectionName)
+    {
+        Logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
 
     /// <summary>
     /// Regular expression pattern for matching subjects.
@@ -82,18 +100,6 @@ public abstract class BaseEventHandler(
     }
 
     /// <summary>
-    /// Handles InvalidProtocolBufferException exceptions. Can be overridden in derived classes.
-    /// </summary>
-    /// <param name="ex">The validation exception.</param>
-    /// <param name="message">The original message bytes.</param>
-    /// <param name="subject">The message subject.</param>
-    /// <returns>A task that represents the asynchronous operation.</returns>
-    // protected virtual async Task HandleInvalidProtocolBufferException(InvalidProtocolBufferException ex, byte[] message, string subject)
-    // {
-    //     await HandleGeneralException(ex, message, subject);
-    // }
-
-    /// <summary>
     /// Handles general exceptions. Can be overridden in derived classes.
     /// </summary>
     /// <param name="ex">The exception.</param>
@@ -119,11 +125,29 @@ public abstract class BaseEventHandler(
             return;
         }
 
+        var retryAttempt = 0;
+        const int maxRetryAttempts = 100; // Allow for many retries as this is a background service
+
         while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
+                if (retryAttempt > 0)
+                {
+                    Logger.LogWarning("Event handler reconnection attempt {RetryAttempt}/{MaxRetries} for consumer {ConsumerName}", 
+                        retryAttempt, maxRetryAttempts, ConsumerName);
+                }
+
                 var consumer = await Broker.CreateStreamConsumerAsync(ConsumerName, StreamName, SubjectName);
+                
+                // Reset retry counter on successful connection
+                if (retryAttempt > 0)
+                {
+                    Logger.LogInformation("Event handler successfully reconnected for consumer {ConsumerName} after {RetryAttempt} attempts", 
+                        ConsumerName, retryAttempt);
+                    retryAttempt = 0;
+                }
+
                 while (!cancellationToken.IsCancellationRequested)
                 {
                     await Broker.ConsumeAsync(consumer, HandleInputEvent);
@@ -132,22 +156,40 @@ public abstract class BaseEventHandler(
             }
             catch (NatsConnException ex)
             {
-                Logger.LogError(ex, "NATS connection error: {ConsumerName} {StreamName} {SubjectName}", ConsumerName, StreamName, SubjectName);
-                Logger.LogError(ex.Message);
-                Logger.LogError(ex, ex.StackTrace);
+                retryAttempt++;
+                Logger.LogError(ex, "NATS connection error on attempt {RetryAttempt}/{MaxRetries}: {ConsumerName} {StreamName} {SubjectName}", 
+                    retryAttempt, maxRetryAttempts, ConsumerName, StreamName, SubjectName);
+                
                 if (ex.ErrorCode == NatsErrorCode.CredFileEmpty || ex.ErrorCode == NatsErrorCode.UrlEmpty)
                 {
                     Logger.LogError("NATS URL or CredFile is empty. Cannot initialize service.");
                     return;
                 }
+
+                if (retryAttempt >= maxRetryAttempts)
+                {
+                    Logger.LogError("Maximum retry attempts ({MaxRetries}) reached for consumer {ConsumerName}. Stopping service.", 
+                        maxRetryAttempts, ConsumerName);
+                    return;
+                }
             }
             catch (Exception e)
             {
-                Logger.LogError(e, "Consumer error: {ConsumerName} {StreamName} {SubjectName}", ConsumerName, StreamName, SubjectName);
-                Logger.LogError(e.Message);
-                Logger.LogError(e, e.StackTrace);
+                retryAttempt++;
+                Logger.LogError(e, "Consumer error on attempt {RetryAttempt}/{MaxRetries}: {ConsumerName} {StreamName} {SubjectName}", 
+                    retryAttempt, maxRetryAttempts, ConsumerName, StreamName, SubjectName);
+
+                if (retryAttempt >= maxRetryAttempts)
+                {
+                    Logger.LogError("Maximum retry attempts ({MaxRetries}) reached for consumer {ConsumerName}. Stopping service.", 
+                        maxRetryAttempts, ConsumerName);
+                    return;
+                }
             }
+            
             // to avoid high CPU usage when jetstream client has no connection or error.
+            Logger.LogWarning("Event handler will retry in 1000ms for consumer {ConsumerName} (attempt {RetryAttempt}/{MaxRetries})", 
+                ConsumerName, retryAttempt, maxRetryAttempts);
             await Task.Delay(1000, cancellationToken);
         }
     }
@@ -192,6 +234,7 @@ public abstract class BaseEventHandler(
     /// <param name="topic">The topic to send the response to.</param>
     /// <param name="cmd">The command associated with the response.</param>
     /// <param name="data">The data to include in the response.</param>
+    /// <param name="seqId">The sequnce id for the request.</param>
     /// <param name="reqSeqId">The request sequence ID.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
     public async Task SendResponse(string topic, string cmd, ServiceResponseDataModelDto data, ulong seqId = 0L, string reqSeqId = "")

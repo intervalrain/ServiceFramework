@@ -265,3 +265,5 @@ src/*/Logs/*
 # IdentityServer temp files
 tempkey.rsa
 tempkey.jwk
+
+.claude
