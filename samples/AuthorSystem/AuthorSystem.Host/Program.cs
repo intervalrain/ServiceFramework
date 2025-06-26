@@ -1,5 +1,9 @@
-using BookStore.Nats.Client.Services;
+using AuthorSystem.Application.Mappings;
+using AuthorSystem.Application.Services;
+using AuthorSystem.Domain.Repositories;
+using AuthorSystem.Infrastructure.Repositories;
 
+using EdgeSync.ServiceFramework.AspNetCore.Mvc;
 using EdgeSync.ServiceFramework.Core.Serialization;
 using EdgeSync.ServiceFramework.DependencyInjection;
 
@@ -7,9 +11,7 @@ using NATS.Client.Core;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+var serviceName = "AuthorSystem API v1";
 
 builder.Services.AddServiceFramework(options =>
 {
@@ -22,9 +24,21 @@ builder.Services.AddServiceFramework(options =>
         .WithCredFile(Environment.GetEnvironmentVariable("MSG_BROKER_CREDFILE") ?? string.Empty)
         .WithSerializerRegistry(NatsProtobufSerializerRegistry.Default);
 });
+builder.Services.AddAutoConvention(c =>
+{
+    c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    {
+        Title = serviceName,
+        Version = "v1",
+        Description = "Author management system API"
+    });
+});
 
+builder.Services.AddSingleton<IAuthorRepository, InMemoryAuthorRepository>();
+builder.Services.AddScoped<IAuthorAppService, AuthorAppService>();
 
-builder.Services.AddScoped<IBookNatsClient, BookNatsClient>();
+builder.Services.AddAutoMapper(typeof(AuthorMappingProfile));
+
 
 var app = builder.Build();
 
@@ -32,7 +46,7 @@ var app = builder.Build();
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "BookStore API V1");
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", serviceName);
     c.RoutePrefix = "";
 });
 

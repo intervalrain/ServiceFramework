@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ErrorOr" Version="2.0.1" />
+    <PackageReference Include="AutoMapper" Version="12.0.1" />
+    <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="12.0.1" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="7.4.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\EdgeSync.ServiceFramework.DependencyInjection\EdgeSync.ServiceFramework.DependencyInjection.csproj" />
+    <ProjectReference Include="..\..\..\src\EdgeSync.ServiceFramework.AspNetCore.Mvc\EdgeSync.ServiceFramework.AspNetCore.Mvc.csproj" />
+    <ProjectReference Include="..\AuthorSystem.Infrastructure\AuthorSystem.Infrastructure.csproj" />
+    <ProjectReference Include="..\AuthorSystem.Application\AuthorSystem.Application.csproj" />
+  </ItemGroup>
+
+</Project>

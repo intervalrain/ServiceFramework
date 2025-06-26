@@ -37,6 +37,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AuthorSystem.Domain", "samp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AuthorSystem.Infrastructure", "samples\AuthorSystem\AuthorSystem.Infrastructure\AuthorSystem.Infrastructure.csproj", "{1D738E57-DE54-47E1-80ED-5CCC4B5A6813}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AuthorSystem.Host", "samples\AuthorSystem\AuthorSystem.Host\AuthorSystem.Host.csproj", "{FC93C76B-B7F2-488D-8CA7-79B233BB1C7A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EdgeSync.ServiceFramework.AspNetCore.Mvc", "src\EdgeSync.ServiceFramework.AspNetCore.Mvc\EdgeSync.ServiceFramework.AspNetCore.Mvc.csproj", "{4BAA7729-C2F7-47D5-B77F-5A071F38790A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -102,6 +106,14 @@ Global
 		{1D738E57-DE54-47E1-80ED-5CCC4B5A6813}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1D738E57-DE54-47E1-80ED-5CCC4B5A6813}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1D738E57-DE54-47E1-80ED-5CCC4B5A6813}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FC93C76B-B7F2-488D-8CA7-79B233BB1C7A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FC93C76B-B7F2-488D-8CA7-79B233BB1C7A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FC93C76B-B7F2-488D-8CA7-79B233BB1C7A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FC93C76B-B7F2-488D-8CA7-79B233BB1C7A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4BAA7729-C2F7-47D5-B77F-5A071F38790A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4BAA7729-C2F7-47D5-B77F-5A071F38790A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4BAA7729-C2F7-47D5-B77F-5A071F38790A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4BAA7729-C2F7-47D5-B77F-5A071F38790A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{41A5507A-49E2-4A88-AD61-BDD18C9EDDB8} = {15A79262-3059-4F6C-A8CB-2DE166D4F665}
@@ -119,5 +131,7 @@ Global
 		{902E4270-AA3E-4707-AE0F-C1BBD0667BF4} = {F1431664-1E8C-44CA-A424-8A029BBDEA37}
 		{88F32670-6D29-457F-9D80-47699CE57F43} = {F1431664-1E8C-44CA-A424-8A029BBDEA37}
 		{1D738E57-DE54-47E1-80ED-5CCC4B5A6813} = {F1431664-1E8C-44CA-A424-8A029BBDEA37}
+		{FC93C76B-B7F2-488D-8CA7-79B233BB1C7A} = {F1431664-1E8C-44CA-A424-8A029BBDEA37}
+		{4BAA7729-C2F7-47D5-B77F-5A071F38790A} = {15A79262-3059-4F6C-A8CB-2DE166D4F665}
 	EndGlobalSection
 EndGlobal
