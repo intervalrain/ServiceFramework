@@ -22,6 +22,11 @@ public class AuthorAppService : NatsService, IAuthorAppService
         _mapper = mapper;
     }
 
+    /// <summary>
+    /// Get author by ID
+    /// </summary>
+    /// <param name="id">The unique identifier of the author</param>
+    /// <returns>Author details if found, otherwise error</returns>
     [Subject("get-author", "authorsys.authors.*.get")]
     public async Task<ErrorOr<AuthorDto>> GetAsync(Guid id)
     {
@@ -34,6 +39,10 @@ public class AuthorAppService : NatsService, IAuthorAppService
         return _mapper.Map<AuthorDto>(author);
     }
 
+    /// <summary>
+    /// Get all authors
+    /// </summary>
+    /// <returns>List of all authors</returns>
     [Subject("get-authors", "authorsys.authors.get")]
     public async Task<ErrorOr<List<AuthorDto>>> GetListAsync()
     {
@@ -41,6 +50,11 @@ public class AuthorAppService : NatsService, IAuthorAppService
         return _mapper.Map<List<AuthorDto>>(authors);
     }
 
+    /// <summary>
+    /// Create a new author
+    /// </summary>
+    /// <param name="input">The author information to create</param>
+    /// <returns>Created author details if successful, otherwise error</returns>
     [Subject("create-author", "authorsys.authors.post")]
     public async Task<ErrorOr<AuthorDto>> CreateAsync(CreateAuthorDto input)
     {
@@ -61,6 +75,12 @@ public class AuthorAppService : NatsService, IAuthorAppService
         return _mapper.Map<AuthorDto>(createdAuthor);
     }
 
+    /// <summary>
+    /// Update an existing author
+    /// </summary>
+    /// <param name="id">The unique identifier of the author to update</param>
+    /// <param name="input">The updated author information</param>
+    /// <returns>Updated author details if successful, otherwise error</returns>
     [Subject("update-author", "authorsys.authors.*.put")]
     public async Task<ErrorOr<AuthorDto>> UpdateAsync(Guid id, UpdateAuthorDto input)
     {
@@ -86,6 +106,11 @@ public class AuthorAppService : NatsService, IAuthorAppService
         return _mapper.Map<Author, AuthorDto>(updatedAuthor);
     }
 
+    /// <summary>
+    /// Delete an author
+    /// </summary>
+    /// <param name="id">The unique identifier of the author to delete</param>
+    /// <returns>Success status if deleted, otherwise error</returns>
     [Subject("delete-author", "authorsys.authors.*.delete")]
     public async Task<ErrorOr<Deleted>> DeleteAsync(Guid id)
     {
@@ -97,5 +122,22 @@ public class AuthorAppService : NatsService, IAuthorAppService
 
         await _authorRepository.DeleteAsync(id);
         return Result.Deleted;
+    }
+
+    [Subject("vote-author", "authorsys.authors.*.vote")]
+    public async Task VoteAsync(Guid id)
+    {
+        var author = await _authorRepository.GetAsync(id);
+        if (author is null)
+        {
+            return;
+        }
+        var result = author.AddVote();
+
+        if (result.IsError)
+        {
+            return;
+        }
+        await _authorRepository.UpdateAsync(author);
     }
 }

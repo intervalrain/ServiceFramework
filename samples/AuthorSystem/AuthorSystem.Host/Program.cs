@@ -24,15 +24,7 @@ builder.Services.AddServiceFramework(options =>
         .WithCredFile(Environment.GetEnvironmentVariable("MSG_BROKER_CREDFILE") ?? string.Empty)
         .WithSerializerRegistry(NatsProtobufSerializerRegistry.Default);
 });
-builder.Services.AddAutoConvention(c =>
-{
-    c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
-    {
-        Title = serviceName,
-        Version = "v1",
-        Description = "Author management system API"
-    });
-});
+builder.Services.AddAutoConvention();
 
 builder.Services.AddSingleton<IAuthorRepository, InMemoryAuthorRepository>();
 builder.Services.AddScoped<IAuthorAppService, AuthorAppService>();

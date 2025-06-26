@@ -34,7 +34,15 @@ public class DefaultAutoConventionRouteBuilder : IAutoConventionRouteBuilder
     {
         if (!string.IsNullOrEmpty(endpointName))
         {
-            return endpointName.StartsWith("/") ? endpointName.TrimStart('/') : endpointName;
+            if (endpointName.StartsWith("/"))
+            {
+                return endpointName.TrimStart('/');
+            }
+            else
+            {
+                var routePrefix = setting.RoutePrefix ?? "api";
+                return $"{routePrefix}/{endpointName}";
+            }
         }
 
         // Generate route from method name

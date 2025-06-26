@@ -14,6 +14,7 @@ public class Author
     public DateTime BirthDate { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+    public int Vote { get; private set; }
 
     private Author(Guid id, string name, string email, string biography, DateTime birthDate)
     {
@@ -23,8 +24,9 @@ public class Author
         Biography = biography;
         BirthDate = birthDate;
         CreatedAt = DateTime.UtcNow;
+        Vote = 0;
     }
-    
+
     public static ErrorOr<Author> Create(string name, string email, string biography, DateTime birthDate)
     {
         var errors = new List<Error>();
@@ -70,5 +72,13 @@ public class Author
         }
 
         return errors.Count > 0 ? errors : this;
+    }
+
+    public ErrorOr<bool> AddVote()
+    {
+        if (Vote == int.MaxValue) return false;
+
+        Vote++;
+        return true;
     }
 }
