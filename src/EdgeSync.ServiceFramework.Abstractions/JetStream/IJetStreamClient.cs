@@ -1,5 +1,6 @@
 using NATS.Client.Core;
 using NATS.Client.JetStream;
+using NATS.Client.JetStream.Models;
 
 namespace EdgeSync.ServiceFramework.JetStream;
 
@@ -75,7 +76,7 @@ public interface IJetStreamClient
     /// <param name="_serializer">The serializer for the message data.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    Task PublishAsync<T>(string subject, T? data, INatsSerialize<T>? _serializer = null, CancellationToken cancellationToken = default);
+    Task<PubAckResponse> PublishAsync<T>(string subject, T? data, INatsSerialize<T>? _serializer = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Request a message to the specified subject using the NATS connection.

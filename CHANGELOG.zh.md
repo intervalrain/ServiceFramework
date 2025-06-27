@@ -1,11 +1,15 @@
 # Changelog
 
-English | [中文](CHANGELOG.md)
+[English](CHANGELOG.md) | 中文
 
-All notable changes to this project will be documented in this file.
+本專案的所有重要變更都將記錄在此檔案中。
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+格式基於 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)，
+並且本專案遵循 [語義化版本控制](https://semver.org/spec/v2.0.0.html)。
+
+## [1.1.2] - 2025-06-25
+### 新增功能
+- **Jet-Stream Ack 模式**: 提供 `PubAckResponse` 作為 `PublishAsync` 的回傳值。
 
 ## [1.1.1] - 2025-06-25
 ### 新增功能
@@ -62,45 +66,45 @@ services.AddServiceFramework(options =>
 ```
 
 ## [1.0.8] - 2025-06-06
-### Changed
-- JsonSerializer now uses camelCase naming policy by default
+### 變更
+- JsonSerializer 現在預設使用 camelCase 命名策略
 
 ## [1.0.7] - 2025-05-16
-### Added
-- Added `RequestAsync` method to `IJetStreamClient` interface
+### 新增功能
+- 為 `IJetStreamClient` 介面新增 `RequestAsync` 方法
 
 ## [1.0.6] - 2025-04-30
-### Fixed
-- Fixed typo errors from version 1.0.5
+### 修復
+- 修復版本 1.0.5 的拼寫錯誤
 
 ## [1.0.5] - 2025-04-18
-### Added
-- Implemented IOptions pattern support
-- Added support for injecting connection URL and credFile via appsettings.json
+### 新增功能
+- 實作 IOptions 模式支持
+- 新增透過 appsettings.json 注入連接 URL 和 credFile 的支持
 
 ## [1.0.4] - 2025-04-18
-### Added
-- Provided Fluent Configuration method `AddNatsApi()`
-- Added alternative ways to inject URL and credFile parameters beyond .env files
+### 新增功能
+- 提供流暢配置方法 `AddNatsApi()`
+- 新增除了 .env 檔案之外注入 URL 和 credFile 參數的替代方法
 
 ## [1.0.3] - 2025-04-17
-### Changed
-- Modified KV Store to use Bus Channel mechanism
+### 變更
+- 修改 KV Store 使用 Bus Channel 機制
 
 ## [1.0.2] - 2025-04-17
-### Changed
-- Removed default value for connection URL
-- Connection URL is now a mandatory parameter (must-be)
+### 變更
+- 移除連接 URL 的預設值
+- 連接 URL 現在是必填參數
 
 ## [1.0.1] - 2025-04-08
-### Added
-- Added Testlib testing library
-- Provided `MockJetStreamClient` mock class
+### 新增功能
+- 新增 Testlib 測試程式庫
+- 提供 `MockJetStreamClient` 模擬類別
 
 ## [1.0.0] - 2025-04-08
-### Added
-- Separated from original project as independent library
-- Architecture split into Abstractions and Core implementation layers
+### 新增功能
+- 從原專案分離為獨立程式庫
+- 架構分為 Abstractions 和 Core 實作層
 
-### Breaking Changes
-- Initial release, refactored and separated from original project
+### 破壞性變更
+- 初始版本，從原專案重構並分離

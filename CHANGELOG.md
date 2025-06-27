@@ -2,16 +2,20 @@
 
 # Changelog
 
-English | [繁體中文](CHANGELOG.md)
+English | [繁體中文](CHANGELOG.zh.md)
 
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] - 2025-06-25
+### Added
+- **Jet-Stream Ack Mode**: Provided `PubAckResponse` as return type of `PublishAsync`.
+
 ## [1.1.1] - 2025-06-25
-### 新增功能
-- **Stream, Consumer 配置**: Added `JetStreamConfigOptions` and `ConsumerConfigOptions` configurations.
+### Added
+- **Stream, Consumer Configuration**: Added `JetStreamConfigOptions` and `ConsumerConfigOptions` configurations.
 
 ## [1.1.0] - 2025-06-25
 ### Added
