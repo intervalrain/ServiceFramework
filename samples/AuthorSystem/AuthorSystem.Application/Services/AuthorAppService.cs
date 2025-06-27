@@ -163,11 +163,12 @@ public class AuthorAppService : NatsService, IAuthorAppService
     /// </summary>
     [Subject("author-created-event", "authorsys.events.author.created")]
     [JetStream(true)] // 明確啟用 JetStream
-    public async Task PublishAuthorCreatedEvent(AuthorEventDto eventData)
+    public Task PublishAuthorCreatedEvent(AuthorEventDto eventData)
     {
         Logger.LogInformation("Publishing author created event for author {AuthorId}", eventData.AuthorId);
         // 這會使用 JetStream Push Mode 發布事件
         // 適用於需要持久化、重播能力的事件
+        return Task.CompletedTask;
     }
     #endregion
 
@@ -178,18 +179,19 @@ public class AuthorAppService : NatsService, IAuthorAppService
     /// </summary>
     [Subject("batch-author-update", "authorsys.classic.batch.update")]
     [JetStream(false)] // 明確禁用 JetStream，使用 Classic Mode
-    public async Task HandleBatchAuthorUpdate(List<BatchAuthorOperationDto> operations)
+    public Task HandleBatchAuthorUpdate(List<BatchAuthorOperationDto> operations)
     {
         Logger.LogInformation("Processing {Count} batch author operations in classic mode", operations.Count);
-        
+
         foreach (var operation in operations)
         {
-            Logger.LogInformation("Processing operation {Type} for {Count} authors", 
+            Logger.LogInformation("Processing operation {Type} for {Count} authors",
                 operation.OperationType, operation.AuthorIds.Count);
-            
+
             // 處理批次操作
             // Classic mode 適用於簡單、無需持久化的批次操作
         }
+        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -197,12 +199,13 @@ public class AuthorAppService : NatsService, IAuthorAppService
     /// </summary>
     [Subject("author-stats-sync", "authorsys.classic.stats.sync")]
     [JetStream(false)] // Classic mode
-    public async Task SynchronizeAuthorStats(List<AuthorStatsUpdateDto> statsUpdates)
+    public Task SynchronizeAuthorStats(List<AuthorStatsUpdateDto> statsUpdates)
     {
         Logger.LogInformation("Synchronizing stats for {Count} authors in classic mode", statsUpdates.Count);
-        
+
         // Classic mode 適用於高頻率、低延遲的狀態同步
         // 不需要持久化或重播能力
+        return Task.CompletedTask;
     }
     #endregion
 
