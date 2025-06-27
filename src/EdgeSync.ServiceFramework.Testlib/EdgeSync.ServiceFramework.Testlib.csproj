@@ -6,10 +6,10 @@
     <TargetFramework>net9.0</TargetFramework>
     <PackageId>EdgeSync.ServiceFramework.Testlib</PackageId>
     <Description>An integrated service handler implementation for NATS</Description>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageTags>edgesync;serviceframework;dependencyinjection;nats;advantech;iot</PackageTags>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <IncludeSource>true</IncludeSource>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
