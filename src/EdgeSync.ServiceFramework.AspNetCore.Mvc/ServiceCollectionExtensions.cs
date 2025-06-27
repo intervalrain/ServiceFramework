@@ -3,6 +3,7 @@ using System.Reflection;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Abstractions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Conventions;
+using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Decisions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.RouteBuilders;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.SwaggerGen;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
@@ -54,6 +55,7 @@ public static class ServiceCollectionExtensions
         where TAutoConventionRouteBuilder : class, IAutoConventionRouteBuilder
     {
         services.AddSingleton<IAutoConventionRouteBuilder, TAutoConventionRouteBuilder>();
+        services.AddSingleton<IConventionDecisionMaker, ConventionDecisionMaker>();
         services.AddControllers();
         services.AddTransient<ApplicationServiceConvention>();
         services.AddSingleton<IConfigureOptions<MvcOptions>, ConfigureMvcConvention>();

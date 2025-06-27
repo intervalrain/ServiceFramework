@@ -1,15 +1,14 @@
 using System.Reflection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ApplicationModels;
-using Microsoft.AspNetCore.Mvc.ActionConstraints;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
-using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.Extensions.Options;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Abstractions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Extensions;
+using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Decisions;
+using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Handlers;
 using EdgeSync.ServiceFramework.Attributes;
-using EdgeSync.ServiceFramework.Abstractions.Attributes;
 using ErrorOr;
 
 namespace EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Conventions;
@@ -21,13 +20,18 @@ public class ApplicationServiceConvention : IApplicationModelConvention
 {
     private readonly AutoConventionOptions _options;
     private readonly IAutoConventionRouteBuilder _routeBuilder;
+    private readonly IConventionDecisionMaker _decisionMaker;
+    private readonly ConventionHandlerFactory _handlerFactory;
 
     public ApplicationServiceConvention(
         IOptions<AutoConventionOptions> options,
-        IAutoConventionRouteBuilder routeBuilder)
+        IAutoConventionRouteBuilder routeBuilder,
+        IConventionDecisionMaker decisionMaker)
     {
         _options = options.Value;
         _routeBuilder = routeBuilder;
+        _decisionMaker = decisionMaker;
+        _handlerFactory = new ConventionHandlerFactory(routeBuilder);
     }
 
     public void Apply(ApplicationModel application)
@@ -103,34 +107,22 @@ public class ApplicationServiceConvention : IApplicationModelConvention
         AutoConventionSetting setting, 
         string controllerRoute)
     {
-        var attributes = new List<Attribute>();
+        // Use new decision-making architecture
+        var context = ConventionDecisionContextBuilder.Build(method, _options);
+        var decisionResult = _decisionMaker.MakeDecision(context);
 
-        // Determine communication mode based on return type and JetStream attribute
-        var communicationMode = DetermineCommunicationMode(method.ReturnType, method);
-
-        // Build route based on endpoint name
-        var actionRoute = _routeBuilder.BuildActionRoute(controllerModel, controllerRoute, method, subjectAttribute?.EndpointName, setting);
-
-        // subjectAttribute ??= new SubjectAttribute(controllerModel.ControllerName, subjectAttribute.CustomSubject);
-        
-        // Select HTTP method based on communication mode
-        var httpMethodAttribute = SelectHttpMethodForNats(communicationMode, method, actionRoute);
-
-        var routeAttribute = new RouteAttribute(actionRoute);
-        attributes.Add(routeAttribute);
-        attributes.Add(httpMethodAttribute);
-
-        // Add NATS-specific metadata
-        attributes.Add(subjectAttribute!);
-
-        // Add API description
-        var description = GetNatsMethodDescription(method, subjectAttribute!);
-        if (!string.IsNullOrEmpty(description))
+        // Handle decision errors
+        if (decisionResult.IsError)
         {
-            // Store description in properties since we don't have ApiDescriptionAttribute
-            // This can be used by Swagger filters
+            throw new InvalidOperationException(
+                $"Auto-convention decision failed for method {method.Name}: {decisionResult.ErrorMessage}");
         }
 
+        // Get appropriate handler for the decided mode
+        var handler = _handlerFactory.GetHandler(decisionResult.Mode);
+
+        // Create action model with basic attributes
+        var attributes = new List<Attribute> { subjectAttribute! };
         var actionModel = new ActionModel(method, attributes)
         {
             Controller = controllerModel,
@@ -141,27 +133,12 @@ public class ApplicationServiceConvention : IApplicationModelConvention
         actionModel.Properties["ServiceType"] = controllerModel.ControllerType.AsType();
         actionModel.Properties["MethodName"] = method.Name;
         actionModel.Properties["OriginalMethod"] = method;
+        actionModel.Properties["ConventionMode"] = decisionResult.Mode;
 
-        var selectorModel = new SelectorModel();
+        // Configure action using the appropriate handler
+        handler.ConfigureAction(actionModel, method, subjectAttribute, setting, controllerRoute);
 
-        var foundRouteAttribute = attributes.OfType<RouteAttribute>().FirstOrDefault();
-        if (foundRouteAttribute != null)
-        {
-            selectorModel.AttributeRouteModel = new AttributeRouteModel(foundRouteAttribute);
-        }
-
-        selectorModel.ActionConstraints.Add(new HttpMethodActionConstraint(httpMethodAttribute.HttpMethods));
-        actionModel.Selectors.Add(selectorModel);
         actionModel.ApiExplorer.IsVisible = true;
-
-        // Handle parameters from original method
-        foreach (var parameter in method.GetParameters())
-        {
-            var parameterModel = CreateNatsParameterModel(parameter, communicationMode, actionRoute);
-            actionModel.Parameters.Add(parameterModel);
-        }
-
-        // Remove execution filter - using direct method call
 
         // Add ErrorOr handling if enabled
         if (_options.UseExceptionHandler && IsErrorOrReturnType(method.ReturnType))
@@ -172,143 +149,6 @@ public class ApplicationServiceConvention : IApplicationModelConvention
         return actionModel;
     }
 
-    private ParameterModel CreateNatsParameterModel(ParameterInfo parameter, CommunicationMode communicationMode, string routeTemplate)
-    {
-        var parameterName = parameter.Name!;
-        BindingSource bindingSource = routeTemplate.Contains("{" + parameterName + "}", StringComparison.OrdinalIgnoreCase)
-            ? BindingSource.Path
-            : DetermineNatsBindingSource(parameter, communicationMode, "POST");
-
-        var parameterAttributes = new List<Attribute>();
-        var bindingSourceAttribute = ToAttribute(bindingSource);
-        if (bindingSourceAttribute != null)
-        {
-            parameterAttributes.Add(bindingSourceAttribute);
-        }
-        parameterAttributes.AddRange(parameter.GetCustomAttributes());
-
-        return new ParameterModel(parameter, parameterAttributes)
-        {
-            ParameterName = parameterName,
-            BindingInfo = new BindingInfo
-            {
-                BindingSource = bindingSource
-            }
-        };
-    }
-
-    #endregion
-
-    #region NATS-Specific Logic
-
-    private CommunicationMode DetermineCommunicationMode(Type returnType, MethodInfo method)
-    {
-        // Check JetStream attribute first
-        var jetStreamAttr = method.GetCustomAttribute<JetStreamAttribute>();
-        
-        // Remove ErrorOr wrapper
-        var actualType = returnType;
-        if (returnType.IsGenericType && returnType.GetGenericTypeDefinition() == typeof(ErrorOr<>))
-        {
-            actualType = returnType.GetGenericArguments()[0];
-        }
-
-        // Check if it's a Task or ValueTask
-        if (actualType.IsGenericType)
-        {
-            var genericDef = actualType.GetGenericTypeDefinition();
-            if (genericDef == typeof(Task<>) || genericDef == typeof(ValueTask<>))
-            {
-                actualType = actualType.GetGenericArguments()[0];
-            }
-        }
-
-        bool hasReturnValue = !(actualType == typeof(Task) || actualType == typeof(void) || actualType == typeof(ValueTask));
-        
-        // If JetStream is explicitly disabled, force PubSub mode
-        if (jetStreamAttr?.Enable == false)
-        {
-            return CommunicationMode.PubSub;
-        }
-        
-        // If JetStream is enabled (default or explicit), use return type to determine mode
-        // Task, void, ValueTask (no return value) = PubSub
-        // Other with return value = RequestResponse
-        return hasReturnValue ? CommunicationMode.RequestResponse : CommunicationMode.PubSub;
-    }
-
-    private HttpMethodAttribute SelectHttpMethodForNats(CommunicationMode communicationMode, MethodInfo method, string route)
-    {
-        // 如果是 Pub/Sub 模式，統一使用 POST
-        if (communicationMode == CommunicationMode.PubSub)
-        {
-            return new HttpPostAttribute(route);
-        }
-
-        // Request/Response 模式根據方法名稱判斷 HTTP 方法
-        var methodName = method.Name.ToLowerInvariant();
-        
-        if (methodName.StartsWith("get") || methodName.StartsWith("find") || methodName.StartsWith("search"))
-            return new HttpGetAttribute(route);
-        
-        if (methodName.StartsWith("create") || methodName.StartsWith("add"))
-            return new HttpPostAttribute(route);
-        
-        if (methodName.StartsWith("update") || methodName.StartsWith("modify"))
-            return new HttpPutAttribute(route);
-        
-        if (methodName.StartsWith("delete") || methodName.StartsWith("remove"))
-            return new HttpDeleteAttribute(route);
-        
-        // 預設使用 POST
-        return new HttpPostAttribute(route);
-    }
-
-    private BindingSource DetermineNatsBindingSource(ParameterInfo parameter, CommunicationMode communicationMode, string httpMethod)
-    {
-        // 檢查顯式綁定屬性
-        if (parameter.GetCustomAttribute<FromBodyAttribute>() != null)
-            return BindingSource.Body;
-        if (parameter.GetCustomAttribute<FromQueryAttribute>() != null)
-            return BindingSource.Query;
-        if (parameter.GetCustomAttribute<FromRouteAttribute>() != null)
-            return BindingSource.Path;
-
-        // 根據 HTTP 方法決定綁定來源
-        return httpMethod switch
-        {
-            "GET" or "DELETE" => IsSimpleType(parameter.ParameterType) ? BindingSource.Query : BindingSource.Query,
-            "POST" or "PUT" or "PATCH" => IsSimpleType(parameter.ParameterType) ? BindingSource.Query : BindingSource.Body,
-            _ => BindingSource.Body
-        };
-    }
-
-    private string? GetNatsMethodDescription(MethodInfo method, SubjectAttribute subjectAttribute)
-    {
-        // Generate description from method name and NATS info
-        var baseDescription = GenerateDescriptionFromMethodName(method.Name);
-        return $"{baseDescription} via NATS subject '{subjectAttribute.CustomSubject}'";
-    }
-
-    private string GenerateDescriptionFromMethodName(string methodName)
-    {
-        var normalizedName = methodName.ToLowerInvariant();
-
-        if (normalizedName.Contains("create"))
-            return $"Create operation";
-        if (normalizedName.Contains("get") || normalizedName.Contains("find") || normalizedName.Contains("search"))
-            return $"Query operation";
-        if (normalizedName.Contains("update"))
-            return $"Update operation";
-        if (normalizedName.Contains("delete"))
-            return $"Delete operation";
-        if (normalizedName.Contains("publish") || normalizedName.Contains("send"))
-            return $"Event publication";
-        if (normalizedName.Contains("handle") || normalizedName.Contains("process"))
-            return $"Event handling";
-
-        return $"NATS operation";
-    }
 
     #endregion
 
