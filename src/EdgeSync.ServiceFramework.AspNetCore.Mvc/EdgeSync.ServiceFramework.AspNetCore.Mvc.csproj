@@ -1,9 +1,16 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+  <Import Project="..\..\common.props" />
+
+
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
+    <PackageId>EdgeSync.ServiceFramework.AspNetCore.Mvc</PackageId>
+    <Description>An integrated auto-convention implementation for NATS</Description>
+    <PackageTags>edgesync;serviceframework;autoconvention;nats;advantech;iot</PackageTags>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <IncludeSource>true</IncludeSource>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
