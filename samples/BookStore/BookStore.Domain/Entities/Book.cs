@@ -13,6 +13,7 @@ public class Book
     public string ISBN { get; set; } = string.Empty;
     public decimal Price { get; set; }
     public int Stock { get; set; }
+    public int Vote { get; set; }
     public DateTime CreatedAt { get; set; }
 
     private Book(Guid id, string title, string author, string isbn, decimal price, int stock)
@@ -23,9 +24,10 @@ public class Book
         ISBN = isbn;
         Price = price;
         Stock = stock;
+        Vote = 0;
         CreatedAt = DateTime.UtcNow;
     }
-    
+
     public static ErrorOr<Book> Create(string title, string author, string isbn, decimal price, int stock)
     {
         var errors = new List<Error>();
@@ -80,6 +82,12 @@ public class Book
         }
 
         Stock += quantity;
+        return this;
+    }
+
+    public ErrorOr<Book> VoteAsync()
+    {
+        Vote++;
         return this;
     }
 }

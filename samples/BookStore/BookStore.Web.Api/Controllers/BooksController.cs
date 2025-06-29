@@ -67,6 +67,15 @@ public class BooksController : ApiController
             book => Ok(),
             errors => Problem(errors));
     }
+
+    [HttpPost("{id:guid}/vote")]
+    public async Task<IActionResult> VoteBook(Guid id)
+    {
+        var result = await _bookNatsClient.VoteAsync(id);
+        return result.Match(
+            book => Ok(),
+            Problem);
+    }
 }
 
 public class RefillStockRequest

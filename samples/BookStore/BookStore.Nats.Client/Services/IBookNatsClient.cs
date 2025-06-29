@@ -11,4 +11,5 @@ public interface IBookNatsClient
     Task<ErrorOr<BookDto>> UpdateBookAsync(Guid id, UpdateBookDto updateDto);
     Task<ErrorOr<Deleted>> DeleteBookAsync(Guid id);
     Task<ErrorOr<BookDto>> RefillStockAsync(Guid id, int quantity);
+    Task<ErrorOr<BookDto>> VoteAsync(Guid id);
 }
