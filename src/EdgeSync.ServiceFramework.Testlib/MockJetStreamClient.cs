@@ -4,6 +4,7 @@ using EdgeSync.ServiceFramework.JetStream;
 
 using NATS.Client.Core;
 using NATS.Client.JetStream;
+using NATS.Client.JetStream.Models;
 
 namespace EdgeSync.ServiceFramework.Testlib;
 
@@ -102,7 +103,7 @@ public abstract class MockJetStreamClient : IJetStreamClient
     /// <summary>
     /// 實現 IJetStreamClient 的方法，記錄發布的消息
     /// </summary>
-    public virtual Task PublishAsync<T>(string subject, T? data, INatsSerialize<T>? serializer = null, CancellationToken cancellationToken = default)
+    public virtual Task<PubAckResponse> PublishAsync<T>(string subject, T? data, INatsSerialize<T>? serializer = null, CancellationToken cancellationToken = default)
     {
         PublishWasCalled = true;
         LastPublishedSubject = subject;
@@ -144,8 +145,15 @@ public abstract class MockJetStreamClient : IJetStreamClient
                 }
             }
         }
-        
-        return Task.CompletedTask;
+
+        return Task.FromResult(new PubAckResponse
+        {
+            Error = new ApiError { Code = 200, ErrCode = 200, Description = "No Error" },
+            Stream = "",
+            Seq = (ulong)new Random().NextInt64(),
+            Duplicate = false,
+            Domain = "",
+        });
     }
 
     // IJetStreamClient 接口的其他方法實現
@@ -245,6 +253,7 @@ public abstract class MockJetStreamClient : IJetStreamClient
         
         return Task.FromResult("This is a mock reply")!;
     }
+
 }
 
 /// <summary>

@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ErrorOr" Version="2.0.1" />
+    <PackageReference Include="AutoMapper" Version="12.0.1" />
+    <PackageReference Include="JetBrains.Annotations" Version="2024.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AuthorSystem.Domain\AuthorSystem.Domain.csproj" />
+    <ProjectReference Include="..\..\..\src\EdgeSync.ServiceFramework.AspNetCore.Mvc\EdgeSync.ServiceFramework.AspNetCore.Mvc.csproj" />
+  </ItemGroup>
+
+</Project>

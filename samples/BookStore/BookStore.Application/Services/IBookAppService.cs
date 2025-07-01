@@ -11,4 +11,5 @@ public interface IBookAppService
     Task<ErrorOr<BookDto>> UpdateAsync(Guid id, UpdateBookDto updateDto);
     Task<ErrorOr<Deleted>> DeleteAsync(Guid id);
     Task<ErrorOr<BookDto>> RefillStockAsync(Guid id, int quantity);
+    Task<ErrorOr<BookDto>> VoteAsync(Guid id);
 }

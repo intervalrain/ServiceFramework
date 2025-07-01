@@ -140,6 +140,31 @@ public class BookNatsClient : IBookNatsClient
             return CommunicationErrors.UnexpectedError;
         }
     }
+    
+    public async Task<ErrorOr<BookDto>> VoteAsync(Guid id)
+    {
+        try
+        {
+            var voteEvent = new BookVoteEvent
+            {
+                BookId = id,
+            };
+
+            var eventJson = JsonSerializer.Serialize(voteEvent, _jsonOptions);
+            var eventBytes = Encoding.UTF8.GetBytes(eventJson);
+
+            await _bus.NatsPublishAsync("bookstore.events.book.vote", eventBytes);
+            
+            _logger.LogDebug("Published vote event for book {BookId}", id);
+            
+            return new BookDto { Id = id };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error publishing vote event for book with id {BookId}", id);
+            return CommunicationErrors.UnexpectedError;
+        }
+    }
 
     private async Task<ErrorOr<T>> SendRequestAsync<T>(string subject, object request)
     {
@@ -167,7 +192,7 @@ public class BookNatsClient : IBookNatsClient
             {
                 _logger.LogWarning("API returned error from {Subject}: {Error}", subject, apiResponse.Error);
                 var errorMessage = apiResponse.Error ?? "Unknown error";
-                
+
                 // 根據錯誤訊息判斷錯誤類型
                 if (errorMessage.Contains("not found", StringComparison.OrdinalIgnoreCase) ||
                     errorMessage.Contains("NotFound", StringComparison.OrdinalIgnoreCase))

@@ -102,7 +102,7 @@ public abstract class BaseEventHandler : MessageTransportBase
     /// <param name="disposing">Indicates whether the method is called from Dispose method.</param>
     protected virtual void Dispose(bool disposing)
     {
-        Broker.Dispose();
+        Default.Dispose();
     }
 
     /// <summary>
@@ -167,7 +167,7 @@ public abstract class BaseEventHandler : MessageTransportBase
                         retryAttempt, maxRetryAttempts, ConsumerName);
                 }
 
-                var consumer = await Broker.CreateStreamConsumerAsync(ConsumerCfgOpts, JStreamCfgOpts);
+                var consumer = await Default.CreateStreamConsumerAsync(ConsumerCfgOpts, JStreamCfgOpts);
                 
                 // Reset retry counter on successful connection
                 if (retryAttempt > 0)
@@ -179,7 +179,7 @@ public abstract class BaseEventHandler : MessageTransportBase
 
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    await Broker.ConsumeAsync(consumer, HandleInputEvent);
+                    await Default.ConsumeAsync(consumer, HandleInputEvent);
                     await Task.Yield();
                 }
             }
@@ -280,7 +280,7 @@ public abstract class BaseEventHandler : MessageTransportBase
         try
         {
             var resp = ResponseModelDto.Serialize(respMsg);
-            await Broker.PublishAsync(topic, Encoding.ASCII.GetBytes(resp));
+            await Default.PublishAsync(topic, Encoding.ASCII.GetBytes(resp));
             Logger.LogInformation("Response sent to {topic}", topic);
         }
         catch (Exception e)
@@ -303,11 +303,11 @@ public abstract class BaseEventHandler : MessageTransportBase
         {
             if (isAtLeastOnce == true)
             {
-                await Broker.PublishAsync(topic, message);
+                await Default.PublishAsync(topic, message);
             }
             else
             {
-                await Broker.NatsPublishAsync(topic, message);
+                await Default.NatsPublishAsync(topic, message);
             }
             Logger.LogInformation("Message published to {topic}", topic);
         }

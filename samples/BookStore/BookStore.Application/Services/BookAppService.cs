@@ -95,4 +95,22 @@ public class BookAppService : IBookAppService
         var updatedBook = await _bookRepository.UpdateAsync(refillResult.Value);
         return _mapper.Map<Book, BookDto>(updatedBook);
     }
+
+    public async Task<ErrorOr<BookDto>> VoteAsync(Guid id)
+    {
+        var existingBook = await _bookRepository.GetAsync(id);
+        if (existingBook is null)
+        {
+            return BookErrors.NotFound;
+        }
+
+        var voteResult = existingBook.VoteAsync();
+        if (voteResult.IsError)
+        {
+            return voteResult.Errors;
+        }
+
+        var updateBook = await _bookRepository.UpdateAsync(voteResult.Value);
+        return _mapper.Map<Book, BookDto>(updateBook);
+    }
 }

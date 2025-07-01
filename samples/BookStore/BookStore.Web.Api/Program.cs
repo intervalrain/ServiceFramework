@@ -1,5 +1,9 @@
 using BookStore.Nats.Client.Services;
+
+using EdgeSync.ServiceFramework.Core.Serialization;
 using EdgeSync.ServiceFramework.DependencyInjection;
+
+using NATS.Client.Core;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,16 +14,13 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddServiceFramework(options =>
 {
     options.DefaultConnection = "bus";
-    options.Connections["bus"] = new EdgeSync.ServiceFramework.NatsConnectionSettings
-    {
-        Name = "bus",
-        Url = Environment.GetEnvironmentVariable("MSG_BUS_URL") ?? "nats://localhost:4223"
-    };
-    options.Connections["broker"] = new EdgeSync.ServiceFramework.NatsConnectionSettings
-    {
-        Name = "broker", 
-        Url = Environment.GetEnvironmentVariable("MSG_BROKER_URL") ?? "nats://localhost:4222"
-    };
+    options.AddConnection("bus", Environment.GetEnvironmentVariable("MSG_BUS_URL") ?? "nats://localhost:4223")
+        .WithCredFile(Environment.GetEnvironmentVariable("MSG_BUS_CREDFILE") ?? string.Empty)
+        .WithSerializerRegistry(NatsDefaultSerializerRegistry.Default);
+
+    options.AddConnection("broker", Environment.GetEnvironmentVariable("MSG_BROKER_URL") ?? "nats://localhost:4222")
+        .WithCredFile(Environment.GetEnvironmentVariable("MSG_BROKER_CREDFILE") ?? string.Empty)
+        .WithSerializerRegistry(NatsProtobufSerializerRegistry.Default);
 });
 
 

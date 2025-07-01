@@ -1,0 +1,90 @@
+using System.Text;
+using System.Text.Json;
+using BookStore.Application.Events;
+using BookStore.Application.Services;
+using EdgeSync.ServiceFramework;
+using EdgeSync.ServiceFramework.JetStream;
+using Microsoft.Extensions.Logging;
+
+using NATS.Client.JetStream.Models;
+
+namespace BookStore.Nats.Api.EventHandlers;
+
+public class BookVoteEventHandler : BaseEventHandler
+{
+    private readonly IBookAppService _bookAppService;
+    private readonly JsonSerializerOptions _jsonOptions;
+
+    public BookVoteEventHandler(
+        ILogger<BaseEventHandler> logger,
+        IJetStreamClientFactory factory,
+        IBookAppService bookAppService)
+        : base(logger, factory, "bus")
+    {
+        _bookAppService = bookAppService;
+        _jsonOptions = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
+    }
+
+    protected override string SubjectName => "bookstore.events.book.vote";
+    protected override string StreamName => "bookstore-stream";
+    protected override string ConsumerName => "book-vote-consumer";
+
+    protected override JetStreamConfigOptions JStreamCfgOpts { get; set; } = new JetStreamConfigOptions
+    {
+        MaxMsgs = -1,
+        MaxBytes = -1,
+        MaxAge = TimeSpan.FromDays(1),
+        Description = "Bookstore events stream for book vote events",
+        Retention = StreamConfigRetention.Limits,
+        Storage = StreamConfigStorage.File,
+    };
+
+    protected override ConsumerConfigOptions ConsumerCfgOpts { get; set; } = new ConsumerConfigOptions()
+    {
+        AckPolicy = ConsumerConfigAckPolicy.Explicit,
+        ReplayPolicy = ConsumerConfigReplayPolicy.Instant,
+        MaxAckPending = -1,
+    };
+
+    protected override async Task HandleInputEventCore(byte[] message, string subject)
+    {
+        try
+        {
+            var messageJson = Encoding.UTF8.GetString(message);
+            Logger.LogDebug("Received book vote event: {Message} on subject: {Subject}", messageJson, subject);
+
+            var voteEvent = JsonSerializer.Deserialize<BookVoteEvent>(messageJson, _jsonOptions);
+            if (voteEvent == null)
+            {
+                Logger.LogWarning("Failed to deserialize book vote event from subject: {Subject}", subject);
+                return;
+            }
+
+            Logger.LogInformation("Processing book vote event for BookId: {BookId}", voteEvent.BookId);
+
+            var result = await _bookAppService.VoteAsync(voteEvent.BookId);
+
+            if (result.IsError)
+            {
+                var errorMessages = string.Join(", ", result.Errors.Select(e => e.Description));
+                Logger.LogError("Failed to vote for BookId: {BookId}. Errors: {Errors}",
+                    voteEvent.BookId, errorMessages);
+                return;
+            }
+
+            Logger.LogInformation("Successfully vote for BookId: {BookId}. New vote amount: {Vote}",
+                voteEvent.BookId, result.Value.Vote);
+        }
+        catch (JsonException ex)
+        {
+            Logger.LogError(ex, "Failed to deserialize book vote event from subject: {Subject}", subject);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Unexpected error processing book vote event from subject: {Subject}", subject);
+        }
+    }
+}
