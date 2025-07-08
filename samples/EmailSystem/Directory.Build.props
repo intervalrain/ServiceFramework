@@ -1,0 +1,31 @@
+<Project>
+	<Import Project="..\..\common.props" />
+
+	<PropertyGroup>
+		<TargetFramework>net9.0</TargetFramework>
+		<IsPackable>false</IsPackable>
+		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+		<WarningsNotAsErrors>NU1701;CS1591</WarningsNotAsErrors>
+
+		<Product>EdgeSync ServiceFramework - Email System Sample</Product>
+		<AssemblyTitle>EmailSystem Clean Architecture Sample</AssemblyTitle>
+
+		<GenerateDocumentationFile>false</GenerateDocumentationFile>
+		<NoWarn>$(NoWarn);1591</NoWarn>
+
+		<PublishTrimmed>false</PublishTrimmed>
+		<PublishSingleFile>false</PublishSingleFile>
+	</PropertyGroup>
+
+	<Target Name="SetBuildTimeStamp" BeforeTargets="GenerateAssemblyInfo">
+		<PropertyGroup>
+			<TimeStamp>$([System.DateTime]::Now.ToString("yyyyMMddHHmmss"))</TimeStamp>
+		</PropertyGroup>
+	</Target>
+
+	<Target Name="NoWarnOnRazorViewImportedTypeConflicts" BeforeTargets="RazorCoreCompile">
+		<PropertyGroup>
+			<NoWarn>$(NoWarn);0436</NoWarn>
+		</PropertyGroup>
+	</Target>
+</Project>
