@@ -5,6 +5,7 @@ using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Conventions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Decisions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.RouteBuilders;
+using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Subscriptions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.SwaggerGen;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
 
@@ -25,6 +26,7 @@ public static class ServiceCollectionExtensions
         services.AddApplicationServiceConvention<TAutoConventionRouteBuilder>(options);
         services.AddServiceFrameworkSwagger(options.UseExceptionHandler, setupAction);
         services.AddNatsServiceAutoDiscovery(options.Settings);
+        services.AddSubscriptionHandlers();
         services.AddHostedService<ServiceFrameworkBackgroundService>();
 
         services.AddHttpContextAccessor();
@@ -162,5 +164,19 @@ public static class ServiceCollectionExtensions
         }
 
         return false;
+    }
+
+    private static IServiceCollection AddSubscriptionHandlers(this IServiceCollection services)
+    {
+        // Register all subscription handlers
+        services.AddSingleton<ISubscriptionHandler, RequestResponseSubscriptionHandler>();
+        services.AddSingleton<ISubscriptionHandler, PubSubPushClassicSubscriptionHandler>();
+        services.AddSingleton<ISubscriptionHandler, PubSubPushJetStreamSubscriptionHandler>();
+        services.AddSingleton<ISubscriptionHandler, PubSubPullJetStreamSubscriptionHandler>();
+
+        // Register the factory
+        services.AddSingleton<ISubscriptionHandlerFactory, SubscriptionHandlerFactory>();
+
+        return services;
     }
 }
