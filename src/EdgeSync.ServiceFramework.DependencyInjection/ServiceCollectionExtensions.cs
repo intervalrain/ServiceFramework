@@ -74,27 +74,44 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IJetStreamClientFactory, JetStreamClientFactory>();
         services.AddSingleton<INatsConnectionFactory, NatsConnectionFactory>();
 
-        if (ServiceConfig.MsgBusUrl != null)
+        // Register keyed INatsConnection for each connection from ServiceFrameworkOptions.Connections
+        foreach (var connectionKvp in options.Connections)
         {
-            // Register INatsConnection properly using the service provider
-            services.AddSingleton<INatsConnection>(sp =>
+            var connectionName = connectionKvp.Key;
+            services.AddKeyedSingleton<INatsConnection>(connectionName, (sp, key) =>
             {
                 var factory = sp.GetRequiredService<INatsConnectionFactory>();
-                return factory.CreateConnectionAsync().GetAwaiter().GetResult();
+                var connectionSettings = options.Connections[connectionName];
+                return factory.CreateConnectionAsync(connectionSettings).GetAwaiter().GetResult();
             });
         }
+
+        // Register default INatsConnection (without key) using DefaultConnection or fallback
+        services.AddSingleton<INatsConnection>(sp =>
+        {
+            var factory = sp.GetRequiredService<INatsConnectionFactory>();
+            
+            // Use DefaultConnection if specified, otherwise use the existing logic
+            if (!string.IsNullOrEmpty(options.DefaultConnection) && 
+                options.Connections.TryGetValue(options.DefaultConnection, out var defaultConnectionSettings))
+            {
+                return factory.CreateConnectionAsync(defaultConnectionSettings).GetAwaiter().GetResult();
+            }
+            
+            return factory.CreateConnectionAsync().GetAwaiter().GetResult();
+        });
 
         services.AddSingleton<IKVStore, KVStoreClient>();
 
         // Register client services
-        services.AddSingleton<IBrokerJetStreamClient>(sp => 
+        services.AddSingleton(sp => 
         {
             var factory = sp.GetRequiredService<IJetStreamClientFactory>();
             var client = factory.CreateMsgBrokerClient();
             return client;
         });
         
-        services.AddSingleton<IBusJetStreamClient>(sp => 
+        services.AddSingleton(sp => 
         {
             var factory = sp.GetRequiredService<IJetStreamClientFactory>();
             var client = factory.CreateMsgBusClient();

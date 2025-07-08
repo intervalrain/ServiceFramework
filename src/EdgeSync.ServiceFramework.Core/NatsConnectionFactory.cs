@@ -13,7 +13,7 @@ public class NatsConnectionFactory : INatsConnectionFactory
         _logger = logger;
     }
 
-    public async Task<INatsConnection> CreateConnectionAsync(string url = "", string credFile = "",
+    public async Task<INatsConnection> CreateConnectionAsync(string url = "", string credFile = "", INatsSerializerRegistry? serializerRegistry = null,
                                                     CancellationToken cancellationToken = default)
     {
         try
@@ -24,7 +24,8 @@ public class NatsConnectionFactory : INatsConnectionFactory
                 AuthOpts = new NatsAuthOpts
                 {
                     CredsFile = credFile == "" ? ServiceConfig.MsgBusCredFile : credFile
-                }
+                },
+                SerializerRegistry = serializerRegistry ?? NatsDefaultSerializerRegistry.Default
             };
             var natsConnection = await NatsConnClient.CreateClientConnectionAsync(
                 natOpts,

@@ -94,12 +94,13 @@ internal class NamedNatsConnectionFactory : INatsConnectionFactory
         _connectionSettings = connectionSettings;
     }
 
-    public async Task<INatsConnection> CreateConnectionAsync(string url = "", string credFile = "", CancellationToken cancellationToken = default)
+    public async Task<INatsConnection> CreateConnectionAsync(string url = "", string credFile = "", INatsSerializerRegistry? serializerRegistry = null, CancellationToken cancellationToken = default)
     {
         try
         {
             var connectionUrl = !string.IsNullOrEmpty(url) ? url : _connectionSettings.Url ?? throw new InvalidOperationException("Nats Url should not be empty");
             var connectionCredFile = !string.IsNullOrEmpty(credFile) ? credFile : _connectionSettings.CredFile;
+            var registry = serializerRegistry != null ? serializerRegistry : _connectionSettings.NatsSerializerRegistry;
 
             var natOpts = NatsOpts.Default with
             {
@@ -109,7 +110,7 @@ internal class NamedNatsConnectionFactory : INatsConnectionFactory
                 {
                     CredsFile = connectionCredFile
                 },
-                SerializerRegistry = _connectionSettings.NatsSerializerRegistry
+                SerializerRegistry = registry
             };
 
             var natsConnection = await NatsConnClient.CreateClientConnectionAsync(natOpts, _logger, cancellationToken: cancellationToken);
@@ -122,4 +123,31 @@ internal class NamedNatsConnectionFactory : INatsConnectionFactory
             throw;
         }
     }
+
+    public async Task<INatsConnection> CreateConnectionAsync(NatsConnectionSettings setting, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var natOpts = NatsOpts.Default with
+            {
+                Name = _connectionSettings.Name,
+                Url = setting.Url ?? throw new InvalidOperationException("Nats Url should not be empty"),
+                AuthOpts = new NatsAuthOpts
+                {
+                    CredsFile = setting.CredFile
+                },
+                SerializerRegistry = setting.NatsSerializerRegistry
+            };
+
+            var natsConnection = await NatsConnClient.CreateClientConnectionAsync(natOpts, _logger, cancellationToken: cancellationToken);
+            _logger.LogInformation("NATS connection established for '{ConnectionName}'. {natOpts}", _connectionSettings.Name, natOpts);
+            return natsConnection;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to establish NATS connection for '{ConnectionName}'.", _connectionSettings.Name);
+            throw;
+        }
+    }
+
 }
