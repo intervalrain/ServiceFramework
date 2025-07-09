@@ -1,5 +1,4 @@
 using AutoMapper;
-using EmailSystem.Application.Dtos;
 using EmailSystem.Domain.Entities;
 using EmailSystem.Domain.Errors;
 using EmailSystem.Domain.Repositories;
@@ -7,7 +6,8 @@ using ErrorOr;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core;
 using Microsoft.Extensions.Logging;
 using EdgeSync.ServiceFramework.Attributes;
-using EdgeSync.ServiceFramework.Abstractions.Attributes;
+using EmailSystem.Application.Contracts.Services;
+using EmailSystem.Application.Contracts.Dtos;
 
 namespace EmailSystem.Application.Services;
 

@@ -104,14 +104,14 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IKVStore, KVStoreClient>();
 
         // Register client services
-        services.AddSingleton(sp => 
+        services.AddSingleton<IBrokerJetStreamClient>(sp => 
         {
             var factory = sp.GetRequiredService<IJetStreamClientFactory>();
             var client = factory.CreateMsgBrokerClient();
             return client;
         });
         
-        services.AddSingleton(sp => 
+        services.AddSingleton<IBusJetStreamClient>(sp => 
         {
             var factory = sp.GetRequiredService<IJetStreamClientFactory>();
             var client = factory.CreateMsgBusClient();

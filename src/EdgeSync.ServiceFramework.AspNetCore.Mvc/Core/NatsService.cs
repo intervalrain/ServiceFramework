@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 
 namespace EdgeSync.ServiceFramework.AspNetCore.Mvc.Core;
 
-public abstract class NatsService
+public abstract class NatsService : INatsService
 {
     protected readonly ILogger Logger;
     protected readonly string ServiceName;

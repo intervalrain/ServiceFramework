@@ -1,7 +1,8 @@
 using EmailSystem.Domain.Entities;
+
 using ErrorOr;
 
-namespace EmailSystem.Application.Services;
+namespace EmailSystem.Application.Contracts.Services;
 
 public interface IEmailSender
 {

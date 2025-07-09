@@ -92,10 +92,7 @@ public static class ServiceCollectionExtensions
 
             foreach (var serviceType in natsServiceTypes)
             {
-                var interfaces = serviceType.GetInterfaces()
-                    .Where(i => i.Name.StartsWith("I") &&
-                               i.Name.EndsWith("Service"))
-                    .ToList();
+                var interfaces = ServiceTypeHelper.GetServiceInterfaces(serviceType);
 
                 if (interfaces.Any())
                 {
@@ -165,6 +162,7 @@ public static class ServiceCollectionExtensions
 
         return false;
     }
+
 
     private static IServiceCollection AddSubscriptionHandlers(this IServiceCollection services)
     {

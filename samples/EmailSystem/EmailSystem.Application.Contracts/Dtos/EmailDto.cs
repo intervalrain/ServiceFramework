@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using EmailSystem.Domain.Entities;
 
-namespace EmailSystem.Application.Dtos;
+namespace EmailSystem.Application.Contracts.Dtos;
 
 /// <summary>
 /// DTO representing an email with its status and metadata

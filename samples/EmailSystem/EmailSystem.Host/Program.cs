@@ -8,6 +8,7 @@ using EdgeSync.ServiceFramework.Core.Serialization;
 using EdgeSync.ServiceFramework.DependencyInjection;
 
 using NATS.Client.Core;
+using EmailSystem.Application.Contracts.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 

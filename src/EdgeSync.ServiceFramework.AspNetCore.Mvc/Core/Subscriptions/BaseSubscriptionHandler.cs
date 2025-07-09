@@ -34,7 +34,7 @@ public abstract class BaseSubscriptionHandler : ISubscriptionHandler
 
         try
         {
-            var service = scope.ServiceProvider.GetService(serviceType);
+            var service = GetServiceInstance(scope.ServiceProvider, serviceType);
             if (service == null)
             {
                 Logger.LogError("Could not resolve service: {ServiceType}", serviceType.Name);
@@ -91,7 +91,7 @@ public abstract class BaseSubscriptionHandler : ISubscriptionHandler
 
         try
         {
-            var service = scope.ServiceProvider.GetService(serviceType);
+            var service = GetServiceInstance(scope.ServiceProvider, serviceType);
             if (service == null)
             {
                 Logger.LogError("Could not resolve service: {ServiceType}", serviceType.Name);
@@ -122,7 +122,7 @@ public abstract class BaseSubscriptionHandler : ISubscriptionHandler
 
         try
         {
-            var service = scope.ServiceProvider.GetService(serviceType);
+            var service = GetServiceInstance(scope.ServiceProvider, serviceType);
             if (service == null)
             {
                 Logger.LogError("Could not resolve service: {ServiceType}", serviceType.Name);
@@ -186,6 +186,43 @@ public abstract class BaseSubscriptionHandler : ISubscriptionHandler
         }
 
         return args;
+    }
+
+    private object? GetServiceInstance(IServiceProvider serviceProvider, Type serviceType)
+    {
+        // First, try to get the service by its registered interfaces
+        var interfaces = ServiceTypeHelper.GetServiceInterfaces(serviceType);
+
+        Logger.LogDebug("Found {Count} interfaces for service type {ServiceType}: {Interfaces}", 
+            interfaces.Count, serviceType.Name, string.Join(", ", interfaces.Select(i => i.Name)));
+
+        foreach (var serviceInterface in interfaces)
+        {
+            var service = serviceProvider.GetService(serviceInterface);
+            if (service != null)
+            {
+                Logger.LogDebug("Successfully resolved service through interface {Interface}", serviceInterface.Name);
+                return service;
+            }
+            else
+            {
+                Logger.LogDebug("Could not resolve service through interface {Interface}", serviceInterface.Name);
+            }
+        }
+
+        // Fallback to the concrete type if no interface is found
+        Logger.LogDebug("Attempting to resolve service directly by concrete type {ServiceType}", serviceType.Name);
+        var concreteService = serviceProvider.GetService(serviceType);
+        if (concreteService != null)
+        {
+            Logger.LogDebug("Successfully resolved service through concrete type {ServiceType}", serviceType.Name);
+        }
+        else
+        {
+            Logger.LogDebug("Could not resolve service through concrete type {ServiceType}", serviceType.Name);
+        }
+        
+        return concreteService;
     }
 
     private object CreateNatsResponse(object errorOrResult)

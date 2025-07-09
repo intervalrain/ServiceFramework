@@ -1,3 +1,4 @@
+using EmailSystem.Application.Contracts.Services;
 using EmailSystem.Domain.Entities;
 using EmailSystem.Domain.Errors;
 using ErrorOr;

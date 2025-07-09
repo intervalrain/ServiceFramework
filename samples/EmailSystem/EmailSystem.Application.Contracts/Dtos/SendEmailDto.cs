@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 
-namespace EmailSystem.Application.Dtos;
+namespace EmailSystem.Application.Contracts.Dtos;
 
 /// <summary>
 /// DTO for sending email with complete content

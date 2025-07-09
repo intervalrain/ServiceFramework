@@ -1,9 +1,11 @@
-using EmailSystem.Application.Dtos;
+using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core;
+
+using EmailSystem.Application.Contracts.Dtos;
 using ErrorOr;
 
-namespace EmailSystem.Application.Services;
+namespace EmailSystem.Application.Contracts.Services;
 
-public interface IEmailAppService
+public interface IEmailAppService : INatsService
 {
     Task<ErrorOr<EmailDto>> GetAsync(Guid id);
     Task<ErrorOr<List<EmailDto>>> GetListAsync();

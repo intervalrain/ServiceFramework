@@ -1,5 +1,6 @@
 using AutoMapper;
-using EmailSystem.Application.Dtos;
+
+using EmailSystem.Application.Contracts.Dtos;
 using EmailSystem.Domain.Entities;
 
 namespace EmailSystem.Application.Mappings;
