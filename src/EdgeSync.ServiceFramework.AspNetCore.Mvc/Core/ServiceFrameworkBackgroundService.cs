@@ -1,14 +1,10 @@
 using System.Reflection;
-using System.Text.Json;
 
 using EdgeSync.ServiceFramework.Abstractions.Attributes;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Decisions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Subscriptions;
-using EdgeSync.ServiceFramework.AspNetCore.Mvc.Extensions;
 using EdgeSync.ServiceFramework.Attributes;
-
-using ErrorOr;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -16,8 +12,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using NATS.Client.Core;
-using NATS.Client.JetStream;
-using NATS.Client.JetStream.Models;
+using NATS.Client.Services;
 
 namespace EdgeSync.ServiceFramework.AspNetCore.Mvc.Core;
 
@@ -123,13 +118,17 @@ public class ServiceFrameworkBackgroundService : BackgroundService
                 {
                     if (natsMethod.IsRequestResponse)
                     {
-                        
+                        var task = Task.Run(async () =>
+                        {
+                            await SetupRequestResponseService(connection, serviceType, natsMethod, stoppingToken);
+                        }, stoppingToken);
+
+                        subscriptionTasks.Add(task);
                     }
                     else
                     {
                         var task = Task.Run(async () =>
                         {
-                            
                             await SubscribeToMethod(connection, serviceType, natsMethod, stoppingToken);
                         }, stoppingToken);
 
@@ -141,6 +140,195 @@ public class ServiceFrameworkBackgroundService : BackgroundService
 
         _logger.LogInformation("All NATS subscriptions started via reflection");
         await Task.WhenAll(subscriptionTasks);
+    }
+
+    private async Task SetupRequestResponseService(INatsConnection connection, Type serviceType, NatsMethodInfo methodInfo, CancellationToken cancellationToken)
+    {
+        try
+        {
+            _logger.LogInformation("Setting up NATS service for request-response: {Subject} for method: {Method} on connection {ConnectionId}",
+                methodInfo.SubjectName, methodInfo.Method.Name, connection.ServerInfo?.ClientId);
+
+            // Create service context
+            var svcContext = new NatsSvcContext(connection);
+            
+            // Create service configuration
+            var serviceName = serviceType.Name.ToLower().Replace("service", "");
+            var serviceVersion = "1.0.0";
+            var config = new NatsSvcConfig(serviceName, serviceVersion);
+            
+            // Add service to context
+            var svcServer = await svcContext.AddServiceAsync(config, cancellationToken);
+            _subscriptions.Add(svcServer);
+
+            // Get the method's parameter types for generic handler creation
+            var methodParams = methodInfo.Method.GetParameters();
+            var endpointName = methodInfo.SubjectAttribute?.EndpointName ?? methodInfo.Method.Name.ToLower().Replace("async", "");
+            
+            if (methodParams.Length > 0)
+            {
+                var requestType = methodParams[0].ParameterType;
+                
+                // Create and add endpoint using reflection to handle generic types
+                var addEndpointMethod = GetType().GetMethod(nameof(AddServiceEndpoint), BindingFlags.NonPublic | BindingFlags.Instance)
+                    ?.MakeGenericMethod(requestType);
+                
+                if (addEndpointMethod != null)
+                {
+                    await (Task)addEndpointMethod.Invoke(this, 
+                        [svcServer, serviceType, methodInfo, endpointName, cancellationToken])!;
+                }
+            }
+            else
+            {
+                // Handle parameterless methods (like GetListAsync)
+                await AddParameterlessServiceEndpoint(svcServer, serviceType, methodInfo, endpointName, cancellationToken);
+            }
+
+            _logger.LogInformation("Successfully set up NATS service for: {Subject} with method: {Method} on connection {ConnectionId}", 
+                methodInfo.SubjectName, methodInfo.Method.Name, connection.ServerInfo?.ClientId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to setup NATS service for: {Subject} with method: {Method} on connection {ConnectionId}", 
+                methodInfo.SubjectName, methodInfo.Method.Name, connection.ServerInfo?.ClientId);
+        }
+    }
+
+    private async Task AddServiceEndpoint<T>(INatsSvcServer svcServer, Type serviceType, NatsMethodInfo methodInfo, string endpointName, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Adding NATS service endpoint: {EndpointName} for method: {Method} on service: {ServiceType}", 
+            endpointName, methodInfo.Method.Name, serviceType.Name);
+            
+        await svcServer.AddEndpointAsync<T>(
+            name: endpointName,
+            handler: async m =>
+            {
+                // Handle exceptions which may occur during message processing
+                if (m.Exception != null)
+                {
+                    await m.ReplyErrorAsync(500, m.Exception.Message);
+                    return;
+                }
+
+                try
+                {
+                    using var scope = _serviceProvider.CreateScope();
+                    var serviceInstance = scope.ServiceProvider.GetService(serviceType);
+                    
+                    if (serviceInstance != null)
+                    {
+                        // Invoke the actual service method
+                        var result = methodInfo.Method.Invoke(serviceInstance, [m.Data]);
+                        
+                        // Handle async methods
+                        if (result is Task task)
+                        {
+                            await task;
+                            
+                            // If the task has a result, get it and reply
+                            if (task.GetType().IsGenericType)
+                            {
+                                var resultValue = task.GetType().GetProperty("Result")?.GetValue(task);
+                                if (resultValue != null)
+                                {
+                                    await m.ReplyAsync(resultValue);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // Handle synchronous methods
+                            if (result != null)
+                            {
+                                await m.ReplyAsync(result);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        await m.ReplyErrorAsync(500, $"Service instance not found for type {serviceType.Name}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error processing request-response for endpoint {EndpointName}: {Message}", 
+                        endpointName, ex.Message);
+                    await m.ReplyErrorAsync(500, ex.Message);
+                }
+            },
+            cancellationToken: cancellationToken);
+            
+        _logger.LogInformation("Successfully added NATS service endpoint: {EndpointName} for method: {Method} on service: {ServiceType}", 
+            endpointName, methodInfo.Method.Name, serviceType.Name);
+    }
+
+    private async Task AddParameterlessServiceEndpoint(INatsSvcServer svcServer, Type serviceType, NatsMethodInfo methodInfo, string endpointName, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Adding parameterless NATS service endpoint: {EndpointName} for method: {Method} on service: {ServiceType}", 
+            endpointName, methodInfo.Method.Name, serviceType.Name);
+            
+        await svcServer.AddEndpointAsync<object>(
+            name: endpointName,
+            handler: async m =>
+            {
+                // Handle exceptions which may occur during message processing
+                if (m.Exception != null)
+                {
+                    await m.ReplyErrorAsync(500, m.Exception.Message);
+                    return;
+                }
+
+                try
+                {
+                    using var scope = _serviceProvider.CreateScope();
+                    var serviceInstance = scope.ServiceProvider.GetService(serviceType);
+                    
+                    if (serviceInstance != null)
+                    {
+                        // Invoke the parameterless service method
+                        var result = methodInfo.Method.Invoke(serviceInstance, []);
+                        
+                        // Handle async methods
+                        if (result is Task task)
+                        {
+                            await task;
+                            
+                            // If the task has a result, get it and reply
+                            if (task.GetType().IsGenericType)
+                            {
+                                var resultValue = task.GetType().GetProperty("Result")?.GetValue(task);
+                                if (resultValue != null)
+                                {
+                                    await m.ReplyAsync(resultValue);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // Handle synchronous methods
+                            if (result != null)
+                            {
+                                await m.ReplyAsync(result);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        await m.ReplyErrorAsync(500, $"Service instance not found for type {serviceType.Name}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error processing parameterless request-response for endpoint {EndpointName}: {Message}", 
+                        endpointName, ex.Message);
+                    await m.ReplyErrorAsync(500, ex.Message);
+                }
+            },
+            cancellationToken: cancellationToken);
+            
+        _logger.LogInformation("Successfully added parameterless NATS service endpoint: {EndpointName} for method: {Method} on service: {ServiceType}", 
+            endpointName, methodInfo.Method.Name, serviceType.Name);
     }
 
     private async Task SubscribeToMethod(INatsConnection connection, Type serviceType, NatsMethodInfo methodInfo, CancellationToken cancellationToken)
