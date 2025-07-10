@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using NATS.Client.Core;
 
-namespace EdgeSync.ServiceFramework;
+namespace EdgeSync.ServiceFramework.Core;
 
 public class NatsConnClient
 {
@@ -50,7 +50,9 @@ public class NatsConnClient
             throw new ArgumentException("NATS URL is empty.");
         }
         logger ??= new NullLogger<NatsConnClient>();
+
         var opts = ClientOpts(options);
+
         for (var i = 0; i < reTryCount; i++)
         {
             try
@@ -59,16 +61,16 @@ public class NatsConnClient
                 {
                     logger.LogWarning($"NATS connection retry {i}/{reTryCount} to '{opts.Url}'");
                 }
-                
                 var nats = new NatsConnection(opts);
+
                 await nats.ConnectAsync();
                 await nats.PingAsync(cancellationToken);
-                
+
                 if (i > 0)
                 {
                     logger.LogInformation($"NATS connection successfully established to '{opts.Url}' on retry {i}/{reTryCount}");
                 }
-                
+
                 return nats;
             }
             catch (Exception ex)
@@ -76,16 +78,15 @@ public class NatsConnClient
                 if (i < reTryCount - 1)
                 {
                     var delayMs = ServiceConfig.NatsRetryDelay * (i + 1);
-                    logger.LogError($"NATS connection to '{opts.Url}' failed on attempt {i + 1}/{reTryCount}. Retrying in {delayMs/1000}s...");
+                    logger.LogError($"NATS connection to '{opts.Url}' failed on attempt {i + 1}/{reTryCount}. Retrying in {delayMs / 1000}s...");
                     await Task.Delay(delayMs, cancellationToken);
                     continue;
                 }
-                
+
                 logger.LogError(ex, $"NATS connection to '{opts.Url}' failed after all {reTryCount} attempts. Error: {ex.Message}");
                 throw;
             }
         }
         throw new Exception("Failed to connect to NATS server.");
     }
-
 }

@@ -121,12 +121,20 @@ public class ServiceFrameworkBackgroundService : BackgroundService
 
                 foreach (var natsMethod in natsMethods)
                 {
-                    var task = Task.Run(async () =>
+                    if (natsMethod.IsRequestResponse)
                     {
-                        await SubscribeToMethod(connection, serviceType, natsMethod, stoppingToken);
-                    }, stoppingToken);
+                        
+                    }
+                    else
+                    {
+                        var task = Task.Run(async () =>
+                        {
+                            
+                            await SubscribeToMethod(connection, serviceType, natsMethod, stoppingToken);
+                        }, stoppingToken);
 
-                    subscriptionTasks.Add(task);
+                        subscriptionTasks.Add(task);
+                    }
                 }
             }
         }
