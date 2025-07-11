@@ -33,7 +33,7 @@ public class PubSubPushClassicSubscriptionHandler : BaseSubscriptionHandler
             {
                 try
                 {
-                    await HandleClassicMessage(serviceType, methodInfo, msg);
+                    await HandleClassicMessage(serviceType, methodInfo, msg, connection);
                 }
                 catch (Exception ex)
                 {

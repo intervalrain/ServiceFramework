@@ -42,9 +42,11 @@ public class JetStreamClientFactory : IJetStreamClientFactory
     /// <returns>A new MsgBrokerJetStreamClient instance</returns>
     public IBrokerJetStreamClient CreateMsgBrokerClient()
     {
+        var connectionSettings = GetConnectionSettings("broker");
         return new MsgBrokerJetStreamClient(
             _loggerFactory.CreateLogger<JetStreamClient>(), 
-            GetConnectionFactory("broker"));
+            _natsConnectionFactory,
+            connectionSettings);
     }
 
     /// <summary>
@@ -53,9 +55,11 @@ public class JetStreamClientFactory : IJetStreamClientFactory
     /// <returns>A new MsgBusJetStreamClient instance</returns>
     public IBusJetStreamClient CreateMsgBusClient()
     {
+        var connectionSettings = GetConnectionSettings("bus");
         return new MsgBusJetStreamClient(
             _loggerFactory.CreateLogger<JetStreamClient>(), 
-            GetConnectionFactory("bus"));
+            _natsConnectionFactory,
+            connectionSettings);
     }
 
     /// <summary>
@@ -63,23 +67,32 @@ public class JetStreamClientFactory : IJetStreamClientFactory
     /// </summary>
     /// <param name="name">The name of the connection to use</param>
     /// <returns>A JetStreamClient instance</returns>
-    public IJetStreamClient CreateClient(string name)
+    public IJetStreamClient CreateClient(string? name = null)
     {
+        var connectionSettings = GetConnectionSettings(name);
         return new JetStreamClient(
             _loggerFactory.CreateLogger<JetStreamClient>(), 
-            GetConnectionFactory(name));
+            _natsConnectionFactory,
+            connectionSettings);
     }
 
-    private INatsConnectionFactory GetConnectionFactory(string connectionName)
+    private NatsConnectionSettings? GetConnectionSettings(string? connectionName)
     {
-        if (string.IsNullOrEmpty(connectionName) || 
-            !_options.Connections.TryGetValue(connectionName, out var connectionSettings))
+        if (string.IsNullOrEmpty(connectionName))
         {
-            return _natsConnectionFactory;
+            // Use default connection if no name specified
+            if (!string.IsNullOrEmpty(_options.DefaultConnection) &&
+                _options.Connections.TryGetValue(_options.DefaultConnection, out var defaultSettings))
+            {
+                return defaultSettings;
+            }
+            
+            // Fallback to first available connection
+            return _options.Connections.Values.FirstOrDefault();
         }
 
-        return new NamedNatsConnectionFactory(
-            _loggerFactory.CreateLogger<NamedNatsConnectionFactory>(), 
-            connectionSettings);
+        // Return specific named connection settings
+        _options.Connections.TryGetValue(connectionName, out var settings);
+        return settings;
     }
 }

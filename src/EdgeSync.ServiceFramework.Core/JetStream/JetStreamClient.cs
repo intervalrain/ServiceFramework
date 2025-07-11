@@ -10,19 +10,29 @@ namespace EdgeSync.ServiceFramework.JetStream;
 
 public class MsgBrokerJetStreamClient : JetStreamClient, IBrokerJetStreamClient
 {
-    public MsgBrokerJetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFactory natsConnectionFactory) : base(logger, natsConnectionFactory)
+    public MsgBrokerJetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFactory natsConnectionFactory, NatsConnectionSettings? connectionSettings = null) 
+        : base(logger, natsConnectionFactory, connectionSettings)
     {
-        Url = ServiceConfig.MsgBrokerUrl;
-        UserCredFilePath = ServiceConfig.MsgBrokerCredFile;
+        // Use legacy config as fallback if connectionSettings is null
+        if (connectionSettings == null)
+        {
+            Url = ServiceConfig.MsgBrokerUrl;
+            UserCredFilePath = ServiceConfig.MsgBrokerCredFile;
+        }
     }
 }
 
 public class MsgBusJetStreamClient : JetStreamClient, IBusJetStreamClient
 {
-    public MsgBusJetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFactory natsConnectionFactory) : base(logger, natsConnectionFactory)
+    public MsgBusJetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFactory natsConnectionFactory, NatsConnectionSettings? connectionSettings = null) 
+        : base(logger, natsConnectionFactory, connectionSettings)
     {
-        Url = ServiceConfig.MsgBusUrl;
-        UserCredFilePath = ServiceConfig.MsgBusCredFile;
+        // Use legacy config as fallback if connectionSettings is null
+        if (connectionSettings == null)
+        {
+            Url = ServiceConfig.MsgBusUrl;
+            UserCredFilePath = ServiceConfig.MsgBusCredFile;
+        }
     }
 
 }
@@ -35,7 +45,8 @@ public class MsgBusJetStreamClient : JetStreamClient, IBusJetStreamClient
 /// </remarks>
 /// <param name="logger">The logger instance to use for logging.</param>
 /// <param name="natsConnectionFactory">The connection factory for create nats connection instance.</param>
-public class JetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFactory natsConnectionFactory) : IDisposable, IJetStreamClient
+/// <param name="connectionSettings">Optional connection settings to use instead of legacy config.</param>
+public class JetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFactory natsConnectionFactory, NatsConnectionSettings? connectionSettings = null) : IDisposable, IJetStreamClient
 {
     public INatsConnection? NatsConnection { get; private set; }
 
@@ -50,6 +61,7 @@ public class JetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFac
     private readonly string _serviceUUID = Guid.NewGuid().ToString();
 
     private readonly INatsConnectionFactory _natsConnectionFactory = natsConnectionFactory;
+    private readonly NatsConnectionSettings? _connectionSettings = connectionSettings;
 
     public string Url { get; set; } = string.Empty;
     public string UserCredFilePath { get; set; } = string.Empty;
@@ -71,7 +83,14 @@ public class JetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFac
             await NatsConnection.DisposeAsync();
         }
 
-        NatsConnection = await _natsConnectionFactory.CreateConnectionAsync(Url, UserCredFilePath);
+        if (_connectionSettings != null)
+        {
+            NatsConnection = await _natsConnectionFactory.CreateConnectionAsync(_connectionSettings);
+        }
+        else
+        {
+            NatsConnection = await _natsConnectionFactory.CreateConnectionAsync(Url, UserCredFilePath);
+        }
     }
 
     /// <summary>

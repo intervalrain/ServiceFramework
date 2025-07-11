@@ -28,7 +28,7 @@ public abstract class BaseSubscriptionHandler : ISubscriptionHandler
 
     public abstract Task SubscribeAsync(INatsConnection connection, Type serviceType, NatsMethodInfo methodInfo, CancellationToken cancellationToken);
 
-    protected async Task HandleRequestResponseMessage(Type serviceType, NatsMethodInfo methodInfo, NatsMsg<string> msg)
+    protected async Task HandleRequestResponseMessage(Type serviceType, NatsMethodInfo methodInfo, NatsMsg<string> msg, INatsConnection connection)
     {
         using var scope = ServiceProvider.CreateScope();
 
@@ -42,7 +42,7 @@ public abstract class BaseSubscriptionHandler : ISubscriptionHandler
             }
 
             var parameters = methodInfo.Method.GetParameters();
-            var args = DeserializeMethodParameters(parameters, msg.Data);
+            var args = DeserializeMethodParameters(parameters, msg.Data, connection);
 
             // Invoke the method
             var result = methodInfo.Method.Invoke(service, args);
@@ -60,20 +60,19 @@ public abstract class BaseSubscriptionHandler : ISubscriptionHandler
                     // Handle any result type for request/response
                     if (taskResult != null)
                     {
-                        var response = CreateNatsResponse(taskResult);
-                        var jsonResponse = JsonSerializer.Serialize(response);
-                        await msg.ReplyAsync(jsonResponse);
+                        var response = (NatsResponse<object>)CreateNatsResponse(taskResult);
+                        await msg.ReplyAsync(response, serializer: connection.Opts.SerializerRegistry.GetSerializer<NatsResponse<object>>());
                     }
                     else
                     {
                         // No result, send success response
-                        var successResponse = JsonSerializer.Serialize(new NatsResponse<object>
+                        var successResponse = new NatsResponse<object>
                         {
                             IsSuccess = true,
                             Data = null,
                             Error = null
-                        });
-                        await msg.ReplyAsync(successResponse);
+                        };
+                        await msg.ReplyAsync(successResponse, serializer: connection.Opts.SerializerRegistry.GetSerializer<NatsResponse<object>>());
                     }
                 }
             }
@@ -85,7 +84,7 @@ public abstract class BaseSubscriptionHandler : ISubscriptionHandler
         }
     }
 
-    protected async Task HandleJetStreamMessage(Type serviceType, NatsMethodInfo methodInfo, NatsJSMsg<string> msg)
+    protected async Task HandleJetStreamMessage(Type serviceType, NatsMethodInfo methodInfo, NatsJSMsg<string> msg, INatsConnection connection)
     {
         using var scope = ServiceProvider.CreateScope();
 
@@ -99,7 +98,7 @@ public abstract class BaseSubscriptionHandler : ISubscriptionHandler
             }
 
             var parameters = methodInfo.Method.GetParameters();
-            var args = DeserializeMethodParameters(parameters, msg.Data);
+            var args = DeserializeMethodParameters(parameters, msg.Data, connection);
 
             // Invoke the method
             var result = methodInfo.Method.Invoke(service, args);
@@ -116,7 +115,7 @@ public abstract class BaseSubscriptionHandler : ISubscriptionHandler
         }
     }
 
-    protected async Task HandleClassicMessage(Type serviceType, NatsMethodInfo methodInfo, NatsMsg<string> msg)
+    protected async Task HandleClassicMessage(Type serviceType, NatsMethodInfo methodInfo, NatsMsg<string> msg, INatsConnection connection)
     {
         using var scope = ServiceProvider.CreateScope();
 
@@ -130,7 +129,7 @@ public abstract class BaseSubscriptionHandler : ISubscriptionHandler
             }
 
             var parameters = methodInfo.Method.GetParameters();
-            var args = DeserializeMethodParameters(parameters, msg.Data);
+            var args = DeserializeMethodParameters(parameters, msg.Data, connection);
 
             // Invoke the method
             var result = methodInfo.Method.Invoke(service, args);
@@ -147,7 +146,7 @@ public abstract class BaseSubscriptionHandler : ISubscriptionHandler
         }
     }
 
-    private object[] DeserializeMethodParameters(System.Reflection.ParameterInfo[] parameters, string? messageData)
+    private object[] DeserializeMethodParameters(System.Reflection.ParameterInfo[] parameters, string? messageData, INatsConnection connection)
     {
         var args = new object[parameters.Length];
 

@@ -49,7 +49,7 @@ public class PubSubPushJetStreamSubscriptionHandler : BaseSubscriptionHandler
             {
                 try
                 {
-                    await HandleJetStreamMessage(serviceType, methodInfo, msg);
+                    await HandleJetStreamMessage(serviceType, methodInfo, msg, connection);
                     await msg.AckAsync();
                 }
                 catch (Exception ex)

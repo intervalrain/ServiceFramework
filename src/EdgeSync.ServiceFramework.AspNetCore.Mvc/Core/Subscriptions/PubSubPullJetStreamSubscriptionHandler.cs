@@ -45,15 +45,15 @@ public class PubSubPullJetStreamSubscriptionHandler : BaseSubscriptionHandler
         // Check if method parameter is collection to determine fetch strategy
         if (IsCollectionParameter(methodInfo.Method))
         {
-            await ProcessWithFetch(consumer, serviceType, methodInfo, cancellationToken);
+            await ProcessWithFetch(consumer, serviceType, methodInfo, connection, cancellationToken);
         }
         else
         {
-            await ProcessWithNext(consumer, serviceType, methodInfo, cancellationToken);
+            await ProcessWithNext(consumer, serviceType, methodInfo, connection, cancellationToken);
         }
     }
 
-    private async Task ProcessWithNext(INatsJSConsumer consumer, Type serviceType, NatsMethodInfo methodInfo, CancellationToken cancellationToken)
+    private async Task ProcessWithNext(INatsJSConsumer consumer, Type serviceType, NatsMethodInfo methodInfo, INatsConnection connection, CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -64,7 +64,7 @@ public class PubSubPullJetStreamSubscriptionHandler : BaseSubscriptionHandler
                 {
                     try
                     {
-                        await HandleJetStreamMessage(serviceType, methodInfo, msg.Value);
+                        await HandleJetStreamMessage(serviceType, methodInfo, msg.Value, connection);
                         await msg.Value.AckAsync();
                     }
                     catch (Exception ex)
@@ -82,7 +82,7 @@ public class PubSubPullJetStreamSubscriptionHandler : BaseSubscriptionHandler
         }
     }
 
-    private async Task ProcessWithFetch(INatsJSConsumer consumer, Type serviceType, NatsMethodInfo methodInfo, CancellationToken cancellationToken)
+    private async Task ProcessWithFetch(INatsJSConsumer consumer, Type serviceType, NatsMethodInfo methodInfo, INatsConnection connection, CancellationToken cancellationToken)
     {
         var maxMsgs = methodInfo.JetStreamPullAttribute?.MaxMessages ?? 100;
         
@@ -94,7 +94,7 @@ public class PubSubPullJetStreamSubscriptionHandler : BaseSubscriptionHandler
                 {
                     try
                     {
-                        await HandleJetStreamMessage(serviceType, methodInfo, msg);
+                        await HandleJetStreamMessage(serviceType, methodInfo, msg, connection);
                         await msg.AckAsync();
                     }
                     catch (Exception ex)

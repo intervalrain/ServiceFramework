@@ -13,6 +13,11 @@ public class ServiceFrameworkOptions
     public string? DefaultConnection { get; set; }
     
     /// <summary>
+    /// Default serializer registry to use for connections that don't specify one
+    /// </summary>
+    public INatsSerializerRegistry DefaultSerializerRegistry { get; set; } = NatsDefaultSerializerRegistry.Default;
+    
+    /// <summary>
     /// Dictionary of named NATS connections
     /// </summary>
     public Dictionary<string, NatsConnectionSettings> Connections { get; set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -40,7 +45,8 @@ public class ServiceFrameworkOptions
         var settings = new NatsConnectionSettings
         {
             Name = name,
-            Url = url
+            Url = url,
+            NatsSerializerRegistry = DefaultSerializerRegistry
         };
 
         Connections[name] = settings;

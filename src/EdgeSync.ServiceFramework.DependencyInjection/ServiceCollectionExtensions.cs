@@ -78,10 +78,18 @@ public static class ServiceCollectionExtensions
         foreach (var connectionKvp in options.Connections)
         {
             var connectionName = connectionKvp.Key;
+            var connectionSettings = connectionKvp.Value;
+            
+            // Ensure connection has a serializer registry (use default if not set)
+            if (connectionSettings.NatsSerializerRegistry == null || 
+                connectionSettings.NatsSerializerRegistry == NatsDefaultSerializerRegistry.Default)
+            {
+                connectionSettings.NatsSerializerRegistry = options.DefaultSerializerRegistry;
+            }
+            
             services.AddKeyedSingleton<INatsConnection>(connectionName, (sp, key) =>
             {
                 var factory = sp.GetRequiredService<INatsConnectionFactory>();
-                var connectionSettings = options.Connections[connectionName];
                 return factory.CreateConnectionAsync(connectionSettings).GetAwaiter().GetResult();
             });
         }
@@ -89,15 +97,22 @@ public static class ServiceCollectionExtensions
         // Register default INatsConnection (without key) using DefaultConnection or fallback
         services.AddSingleton<INatsConnection>(sp =>
         {
-            var factory = sp.GetRequiredService<INatsConnectionFactory>();
-            
-            // Use DefaultConnection if specified, otherwise use the existing logic
+            // Use DefaultConnection if specified, this will reuse the same singleton instance
             if (!string.IsNullOrEmpty(options.DefaultConnection) && 
-                options.Connections.TryGetValue(options.DefaultConnection, out var defaultConnectionSettings))
+                options.Connections.ContainsKey(options.DefaultConnection))
             {
-                return factory.CreateConnectionAsync(defaultConnectionSettings).GetAwaiter().GetResult();
+                return sp.GetRequiredKeyedService<INatsConnection>(options.DefaultConnection);
             }
             
+            // Fallback to first available connection if DefaultConnection not specified
+            if (options.Connections.Any())
+            {
+                var firstConnectionName = options.Connections.Keys.First();
+                return sp.GetRequiredKeyedService<INatsConnection>(firstConnectionName);
+            }
+            
+            // Last resort: use factory with legacy config
+            var factory = sp.GetRequiredService<INatsConnectionFactory>();
             return factory.CreateConnectionAsync().GetAwaiter().GetResult();
         });
 

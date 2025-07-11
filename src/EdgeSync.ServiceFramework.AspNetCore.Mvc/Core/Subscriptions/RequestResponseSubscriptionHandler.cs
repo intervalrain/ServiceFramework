@@ -33,19 +33,19 @@ public class RequestResponseSubscriptionHandler : BaseSubscriptionHandler
             {
                 try
                 {
-                    await HandleRequestResponseMessage(serviceType, methodInfo, msg);
+                    await HandleRequestResponseMessage(serviceType, methodInfo, msg, connection);
                 }
                 catch (Exception ex)
                 {
                     Logger.LogError(ex, "Error processing request/response message for subject: {Subject}", methodInfo.SubjectName);
                     // Send error response
-                    var errorResponse = JsonSerializer.Serialize(new NatsResponse<object>
+                    var errorResponse = new NatsResponse<object>
                     {
                         IsSuccess = false,
                         Data = null,
                         Error = ex.Message
-                    });
-                    await msg.ReplyAsync(errorResponse);
+                    };
+                    await msg.ReplyAsync(errorResponse, serializer: connection.Opts.SerializerRegistry.GetSerializer<NatsResponse<object>>());
                 }
             }, cancellationToken);
         }

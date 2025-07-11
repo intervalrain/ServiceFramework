@@ -116,24 +116,30 @@ public class ServiceFrameworkBackgroundService : BackgroundService
 
                 foreach (var natsMethod in natsMethods)
                 {
-                    if (natsMethod.IsRequestResponse)
-                    {
-                        var task = Task.Run(async () =>
-                        {
-                            await SetupRequestResponseService(connection, serviceType, natsMethod, stoppingToken);
-                        }, stoppingToken);
+                    // if (natsMethod.IsRequestResponse)
+                    // {
+                    //     var task = Task.Run(async () =>
+                    //     {
+                    //         await SetupRequestResponseService(connection, serviceType, natsMethod, stoppingToken);
+                    //     }, stoppingToken);
 
-                        subscriptionTasks.Add(task);
-                    }
-                    else
-                    {
-                        var task = Task.Run(async () =>
-                        {
-                            await SubscribeToMethod(connection, serviceType, natsMethod, stoppingToken);
-                        }, stoppingToken);
+                    //     subscriptionTasks.Add(task);
+                    // }
+                    // else
+                    // {
+                    //     var task = Task.Run(async () =>
+                    //     {
+                    //         await SubscribeToMethod(connection, serviceType, natsMethod, stoppingToken);
+                    //     }, stoppingToken);
 
-                        subscriptionTasks.Add(task);
-                    }
+                    //     subscriptionTasks.Add(task);
+                    // }
+                    var task = Task.Run(async () =>
+                    {
+                        await SubscribeToMethod(connection, serviceType, natsMethod, stoppingToken);
+                    }, stoppingToken);
+
+                    subscriptionTasks.Add(task);
                 }
             }
         }
@@ -151,12 +157,12 @@ public class ServiceFrameworkBackgroundService : BackgroundService
 
             // Create service context
             var svcContext = new NatsSvcContext(connection);
-            
+
             // Create service configuration
             var serviceName = serviceType.Name.ToLower().Replace("service", "");
             var serviceVersion = "1.0.0";
             var config = new NatsSvcConfig(serviceName, serviceVersion);
-            
+
             // Add service to context
             var svcServer = await svcContext.AddServiceAsync(config, cancellationToken);
             _subscriptions.Add(svcServer);
@@ -164,18 +170,18 @@ public class ServiceFrameworkBackgroundService : BackgroundService
             // Get the method's parameter types for generic handler creation
             var methodParams = methodInfo.Method.GetParameters();
             var endpointName = methodInfo.SubjectAttribute?.EndpointName ?? methodInfo.Method.Name.ToLower().Replace("async", "");
-            
+
             if (methodParams.Length > 0)
             {
                 var requestType = methodParams[0].ParameterType;
-                
+
                 // Create and add endpoint using reflection to handle generic types
                 var addEndpointMethod = GetType().GetMethod(nameof(AddServiceEndpoint), BindingFlags.NonPublic | BindingFlags.Instance)
                     ?.MakeGenericMethod(requestType);
-                
+
                 if (addEndpointMethod != null)
                 {
-                    await (Task)addEndpointMethod.Invoke(this, 
+                    await (Task)addEndpointMethod.Invoke(this,
                         [svcServer, serviceType, methodInfo, endpointName, cancellationToken])!;
                 }
             }
@@ -185,21 +191,21 @@ public class ServiceFrameworkBackgroundService : BackgroundService
                 await AddParameterlessServiceEndpoint(svcServer, serviceType, methodInfo, endpointName, cancellationToken);
             }
 
-            _logger.LogInformation("Successfully set up NATS service for: {Subject} with method: {Method} on connection {ConnectionId}", 
+            _logger.LogInformation("Successfully set up NATS service for: {Subject} with method: {Method} on connection {ConnectionId}",
                 methodInfo.SubjectName, methodInfo.Method.Name, connection.ServerInfo?.ClientId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to setup NATS service for: {Subject} with method: {Method} on connection {ConnectionId}", 
+            _logger.LogError(ex, "Failed to setup NATS service for: {Subject} with method: {Method} on connection {ConnectionId}",
                 methodInfo.SubjectName, methodInfo.Method.Name, connection.ServerInfo?.ClientId);
         }
     }
 
     private async Task AddServiceEndpoint<T>(INatsSvcServer svcServer, Type serviceType, NatsMethodInfo methodInfo, string endpointName, CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Adding NATS service endpoint: {EndpointName} for method: {Method} on service: {ServiceType}", 
+        _logger.LogInformation("Adding NATS service endpoint: {EndpointName} for method: {Method} on service: {ServiceType}",
             endpointName, methodInfo.Method.Name, serviceType.Name);
-            
+
         await svcServer.AddEndpointAsync<T>(
             name: endpointName,
             handler: async m =>
@@ -215,17 +221,17 @@ public class ServiceFrameworkBackgroundService : BackgroundService
                 {
                     using var scope = _serviceProvider.CreateScope();
                     var serviceInstance = scope.ServiceProvider.GetService(serviceType);
-                    
+
                     if (serviceInstance != null)
                     {
                         // Invoke the actual service method
                         var result = methodInfo.Method.Invoke(serviceInstance, [m.Data]);
-                        
+
                         // Handle async methods
                         if (result is Task task)
                         {
                             await task;
-                            
+
                             // If the task has a result, get it and reply
                             if (task.GetType().IsGenericType)
                             {
@@ -252,22 +258,22 @@ public class ServiceFrameworkBackgroundService : BackgroundService
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error processing request-response for endpoint {EndpointName}: {Message}", 
+                    _logger.LogError(ex, "Error processing request-response for endpoint {EndpointName}: {Message}",
                         endpointName, ex.Message);
                     await m.ReplyErrorAsync(500, ex.Message);
                 }
             },
             cancellationToken: cancellationToken);
-            
-        _logger.LogInformation("Successfully added NATS service endpoint: {EndpointName} for method: {Method} on service: {ServiceType}", 
+
+        _logger.LogInformation("Successfully added NATS service endpoint: {EndpointName} for method: {Method} on service: {ServiceType}",
             endpointName, methodInfo.Method.Name, serviceType.Name);
     }
 
     private async Task AddParameterlessServiceEndpoint(INatsSvcServer svcServer, Type serviceType, NatsMethodInfo methodInfo, string endpointName, CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Adding parameterless NATS service endpoint: {EndpointName} for method: {Method} on service: {ServiceType}", 
+        _logger.LogInformation("Adding parameterless NATS service endpoint: {EndpointName} for method: {Method} on service: {ServiceType}",
             endpointName, methodInfo.Method.Name, serviceType.Name);
-            
+
         await svcServer.AddEndpointAsync<object>(
             name: endpointName,
             handler: async m =>
@@ -283,17 +289,17 @@ public class ServiceFrameworkBackgroundService : BackgroundService
                 {
                     using var scope = _serviceProvider.CreateScope();
                     var serviceInstance = scope.ServiceProvider.GetService(serviceType);
-                    
+
                     if (serviceInstance != null)
                     {
                         // Invoke the parameterless service method
                         var result = methodInfo.Method.Invoke(serviceInstance, []);
-                        
+
                         // Handle async methods
                         if (result is Task task)
                         {
                             await task;
-                            
+
                             // If the task has a result, get it and reply
                             if (task.GetType().IsGenericType)
                             {
@@ -320,14 +326,14 @@ public class ServiceFrameworkBackgroundService : BackgroundService
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error processing parameterless request-response for endpoint {EndpointName}: {Message}", 
+                    _logger.LogError(ex, "Error processing parameterless request-response for endpoint {EndpointName}: {Message}",
                         endpointName, ex.Message);
                     await m.ReplyErrorAsync(500, ex.Message);
                 }
             },
             cancellationToken: cancellationToken);
-            
-        _logger.LogInformation("Successfully added parameterless NATS service endpoint: {EndpointName} for method: {Method} on service: {ServiceType}", 
+
+        _logger.LogInformation("Successfully added parameterless NATS service endpoint: {EndpointName} for method: {Method} on service: {ServiceType}",
             endpointName, methodInfo.Method.Name, serviceType.Name);
     }
 
@@ -349,12 +355,12 @@ public class ServiceFrameworkBackgroundService : BackgroundService
                 _logger.LogError(ex, "Unsupported convention mode: {Mode} for method: {Method}", methodInfo.ConventionMode, methodInfo.Method.Name);
             }
 
-            _logger.LogInformation("Successfully subscribed to subject: {Subject} with mode: {Mode} on connection {ConnectionId}", 
+            _logger.LogInformation("Successfully subscribed to subject: {Subject} with mode: {Mode} on connection {ConnectionId}",
                 methodInfo.SubjectName, methodInfo.ConventionMode, connection.ServerInfo?.ClientId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to subscribe to subject: {Subject} with mode: {Mode} on connection {ConnectionId}", 
+            _logger.LogError(ex, "Failed to subscribe to subject: {Subject} with mode: {Mode} on connection {ConnectionId}",
                 methodInfo.SubjectName, methodInfo.ConventionMode, connection.ServerInfo?.ClientId);
         }
     }
@@ -370,7 +376,7 @@ public class ServiceFrameworkBackgroundService : BackgroundService
             var subjectAttr = method.GetCustomAttribute<SubjectAttribute>();
             var jetStreamAttr = method.GetCustomAttribute<JetStreamAttribute>();
             var jetStreamPullAttr = method.GetCustomAttribute<JetStreamPullAttribute>();
-            
+
             var natsMethodInfo = new NatsMethodInfo
             {
                 Method = method,
@@ -385,16 +391,16 @@ public class ServiceFrameworkBackgroundService : BackgroundService
             // Use IConventionDecisionMaker to determine the mode
             var context = ConventionDecisionContextBuilder.Build(method, _options);
             var decisionResult = _decisionMaker.MakeDecision(context);
-            
+
             if (decisionResult.IsError)
             {
-                _logger.LogError("Convention decision error for method {MethodName} on service {ServiceType}: {ErrorMessage}", 
+                _logger.LogError("Convention decision error for method {MethodName} on service {ServiceType}: {ErrorMessage}",
                     method.Name, serviceType.Name, decisionResult.ErrorMessage);
                 throw new InvalidOperationException($"Convention decision error for method {method.Name}: {decisionResult.ErrorMessage}");
             }
-            
+
             natsMethodInfo.ConventionMode = decisionResult.Mode;
-            
+
             yield return natsMethodInfo;
         }
     }
