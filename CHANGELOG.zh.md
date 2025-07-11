@@ -7,6 +7,10 @@
 格式基於 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)，
 並且本專案遵循 [語義化版本控制](https://semver.org/spec/v2.0.0.html)。
 
+## [1.2.0] - 2025-07-11
+### Added
+- **健康度檢查**: 提供 `NatsConnectionHealthCheck` 來檢查 NATS 的連線健康狀態。
+
 ## [1.1.2] - 2025-06-25
 ### 新增功能
 - **Jet-Stream Ack 模式**: 提供 `PubAckResponse` 作為 `PublishAsync` 的回傳值。
