@@ -27,7 +27,7 @@ public class PubSubPushJetStreamHandler : BaseConventionHandler
         return new HttpPostAttribute(route);
     }
 
-    protected override BindingSource DetermineBindingSource(ParameterInfo parameter)
+    protected override BindingSource DetermineBindingSource(ParameterInfo parameter, HttpMethodAttribute httpMethodAttribute)
     {
         // 檢查顯式綁定屬性
         if (parameter.GetCustomAttribute<FromBodyAttribute>() != null)

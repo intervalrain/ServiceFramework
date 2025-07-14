@@ -13,14 +13,14 @@ namespace EdgeSync.ServiceFramework.AspNetCore.Mvc.Core;
 public abstract class NatsService : INatsService
 {
     protected readonly ILogger Logger;
-    protected readonly string ServiceName;
+    public readonly string ServiceName;
     private readonly IConventionDecisionMaker? _decisionMaker;
     private readonly AutoConventionOptions? _options;
 
     protected NatsService(ILogger logger)
     {
         Logger = logger;
-        ServiceName = GetType().Name.ToLower().RemovePostfixes(["natsapplicationservice", "applicationservice", "appservice", "service"]);
+        ServiceName = GetNatsServiceFromAttribute();
     }
 
     protected NatsService(ILogger logger, IConventionDecisionMaker decisionMaker, AutoConventionOptions options) : this(logger)
@@ -29,19 +29,18 @@ public abstract class NatsService : INatsService
         _options = options;
     }
 
-    public virtual string GetSubjectPrefix() => ServiceName;
-
-    public virtual IEnumerable<NatsMethodInfo> GetNatsMethods()
+    protected virtual string GetSubjectPrefix() => ServiceName;
+    protected virtual IEnumerable<NatsMethodInfo> GetNatsMethods()
     {
         var methods = GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
             .Where(m => m.Name.EndsWith("Async") && m.ReturnType.IsGenericType)
             .Select(method =>
             {
-                
+
                 var subjectAttr = method.GetCustomAttribute<SubjectAttribute>();
                 var jetStreamAttr = method.GetCustomAttribute<JetStreamAttribute>();
                 var jetStreamPullAttr = method.GetCustomAttribute<JetStreamPullAttribute>();
-                
+
                 var natsMethodInfo = new NatsMethodInfo
                 {
                     ServiceName = ServiceName,
@@ -59,12 +58,12 @@ public abstract class NatsService : INatsService
                 {
                     var context = ConventionDecisionContextBuilder.Build(method, _options);
                     var decisionResult = _decisionMaker.MakeDecision(context);
-                    
+
                     if (decisionResult.IsError)
                     {
                         throw new InvalidOperationException($"Convention decision error for method {method.Name}: {decisionResult.ErrorMessage}");
                     }
-                    
+
                     natsMethodInfo.ConventionMode = decisionResult.Mode;
                 }
                 else
@@ -86,9 +85,19 @@ public abstract class NatsService : INatsService
         {
             return ConventionMode.RequestResponse;
         }
-        
+
         // Default to classic pub/sub for backward compatibility
         return ConventionMode.PubSubPushClassic;
+    }
+
+    private string GetNatsServiceFromAttribute()
+    {
+        var attr = GetType().GetCustomAttribute<ServiceInfoAttribute>();
+        if (attr != null && attr.ServiceName != null)
+        {
+            return attr.ServiceName;
+        }
+        return GetType().Name.ToLower().RemovePostfixes(["natsapplicationservice", "applicationservice", "appservice", "service"]);
     }
 }
 

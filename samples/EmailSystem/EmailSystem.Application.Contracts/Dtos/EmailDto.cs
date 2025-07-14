@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using EmailSystem.Domain.Entities;
 
 namespace EmailSystem.Application.Contracts.Dtos;
@@ -13,6 +14,7 @@ public class EmailDto
     /// Unique identifier for the email
     /// </summary>
     [Required]
+    [JsonPropertyName("id")]
     public Guid Id { get; set; }
     
     /// <summary>
@@ -21,6 +23,7 @@ public class EmailDto
     [Required]
     [MaxLength(200)]
     [DefaultValue("Welcome to EmailSystem")]
+    [JsonPropertyName("subject")]
     public string Subject { get; set; } = string.Empty;
     
     /// <summary>
@@ -30,6 +33,7 @@ public class EmailDto
     [EmailAddress]
     [MaxLength(254)]
     [DefaultValue("rain.hu@advantech.com")]
+    [JsonPropertyName("to")]
     public string To { get; set; } = string.Empty;
     
     /// <summary>
@@ -39,6 +43,7 @@ public class EmailDto
     [EmailAddress]
     [MaxLength(254)]
     [DefaultValue("noreply@advantech.com")]
+    [JsonPropertyName("from")]
     public string From { get; set; } = string.Empty;
     
     /// <summary>
@@ -46,6 +51,7 @@ public class EmailDto
     /// </summary>
     [MaxLength(65535)]
     [DefaultValue("<html><body><h1>Welcome!</h1><p>This is a test email.</p></body></html>")]
+    [JsonPropertyName("htmlContent")]
     public string HtmlContent { get; set; } = string.Empty;
     
     /// <summary>
@@ -53,17 +59,20 @@ public class EmailDto
     /// </summary>
     [MaxLength(65535)]
     [DefaultValue("Welcome!\n\nThis is a test email.")]
+    [JsonPropertyName("textContent")]
     public string TextContent { get; set; } = string.Empty;
     
     /// <summary>
     /// When the email was created
     /// </summary>
     [Required]
+    [JsonPropertyName("createdAt")]
     public DateTime CreatedAt { get; set; }
     
     /// <summary>
     /// When the email was sent (null if not sent yet)
     /// </summary>
+    [JsonPropertyName("sentAt")]
     public DateTime? SentAt { get; set; }
     
     /// <summary>
@@ -71,10 +80,12 @@ public class EmailDto
     /// </summary>
     [Required]
     [DefaultValue(EmailStatus.Pending)]
+    [JsonPropertyName("status")]
     public EmailStatus Status { get; set; }
     
     /// <summary>
     /// Additional data associated with the email
     /// </summary>
+    [JsonPropertyName("data")]
     public Dictionary<string, object> Data { get; set; } = new();
 }

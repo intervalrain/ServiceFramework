@@ -11,6 +11,8 @@ using EdgeSync.ServiceFramework.Abstractions.Attributes;
 
 namespace AuthorSystem.Application.Services;
 
+[Channel("bus")]
+[ServiceInfo(ServiceName = "Author", ServiceVersion = "1.0.0", QueueGroup = "author-q")]
 public class AuthorAppService : NatsService, IAuthorAppService
 {
     private readonly IAuthorRepository _authorRepository;
@@ -26,12 +28,11 @@ public class AuthorAppService : NatsService, IAuthorAppService
     /// <summary>
     /// Get author by ID
     /// </summary>
-    /// <param name="id">The unique identifier of the author</param>
     /// <returns>Author details if found, otherwise error</returns>
     [Subject("get-author", "authorsys.authors.*.get")]
-    public async Task<ErrorOr<AuthorDto>> GetAsync(Guid id)
+    public async Task<ErrorOr<AuthorDto>> GetAsync(GetAuthorDto input)
     {
-        var author = await _authorRepository.GetAsync(id);
+        var author = await _authorRepository.GetAsync(input.Id);
         if (author is null)
         {
             return AuthorErrors.NotFound;
@@ -79,20 +80,19 @@ public class AuthorAppService : NatsService, IAuthorAppService
     /// <summary>
     /// Update an existing author
     /// </summary>
-    /// <param name="id">The unique identifier of the author to update</param>
     /// <param name="input">The updated author information</param>
     /// <returns>Updated author details if successful, otherwise error</returns>
     [Subject("update-author", "authorsys.authors.*.put")]
-    public async Task<ErrorOr<AuthorDto>> UpdateAsync(Guid id, UpdateAuthorDto input)
+    public async Task<ErrorOr<AuthorDto>> UpdateAsync(UpdateAuthorDto input)
     {
-        var existingAuthor = await _authorRepository.GetAsync(id);
+        var existingAuthor = await _authorRepository.GetAsync(input.Id);
         if (existingAuthor is null)
         {
             return AuthorErrors.NotFound;
         }
 
         var authorWithSameEmail = await _authorRepository.GetByEmailAsync(input.Email);
-        if (authorWithSameEmail is not null && authorWithSameEmail.Id != id)
+        if (authorWithSameEmail is not null && authorWithSameEmail.Id != input.Id)
         {
             return AuthorErrors.EmailAlreadyExists;
         }
@@ -110,25 +110,24 @@ public class AuthorAppService : NatsService, IAuthorAppService
     /// <summary>
     /// Delete an author
     /// </summary>
-    /// <param name="id">The unique identifier of the author to delete</param>
     /// <returns>Success status if deleted, otherwise error</returns>
     [Subject("delete-author", "authorsys.authors.*.delete")]
-    public async Task<ErrorOr<Deleted>> DeleteAsync(Guid id)
+    public async Task<ErrorOr<Deleted>> DeleteAsync(GetAuthorDto input)
     {
-        var author = await _authorRepository.GetAsync(id);
+        var author = await _authorRepository.GetAsync(input.Id);
         if (author is null)
         {
             return AuthorErrors.NotFound;
         }
 
-        await _authorRepository.DeleteAsync(id);
+        await _authorRepository.DeleteAsync(input.Id);
         return Result.Deleted;
     }
 
     [Subject("vote-author", "authorsys.authors.*.vote")]
-    public async Task VoteAsync(Guid id)
+    public async Task VoteAsync(GetAuthorDto input)
     {
-        var author = await _authorRepository.GetAsync(id);
+        var author = await _authorRepository.GetAsync(input.Id);
         if (author is null)
         {
             return;

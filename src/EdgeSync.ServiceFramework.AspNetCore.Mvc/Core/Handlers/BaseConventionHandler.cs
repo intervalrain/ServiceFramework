@@ -48,7 +48,7 @@ public abstract class BaseConventionHandler : IConventionHandler
         actionModel.Selectors.Add(selectorModel);
 
         // Configure parameters
-        ConfigureParameters(actionModel, method, actionRoute);
+        ConfigureParameters(actionModel, method, actionRoute, httpMethodAttribute);
 
         // Mode-specific configuration
         ConfigureModeSpecific(actionModel, method, subjectAttribute, setting, controllerRoute);
@@ -63,21 +63,21 @@ public abstract class BaseConventionHandler : IConventionHandler
         AutoConventionSetting setting,
         string controllerRoute);
 
-    protected virtual void ConfigureParameters(ActionModel actionModel, MethodInfo method, string routeTemplate)
+    protected virtual void ConfigureParameters(ActionModel actionModel, MethodInfo method, string routeTemplate, HttpMethodAttribute httpMethodAttribute)
     {
         foreach (var parameter in method.GetParameters())
         {
-            var parameterModel = CreateParameterModel(parameter, routeTemplate);
+            var parameterModel = CreateParameterModel(parameter, routeTemplate, httpMethodAttribute);
             actionModel.Parameters.Add(parameterModel);
         }
     }
 
-    protected virtual ParameterModel CreateParameterModel(ParameterInfo parameter, string routeTemplate)
+    protected virtual ParameterModel CreateParameterModel(ParameterInfo parameter, string routeTemplate, HttpMethodAttribute httpMethodAttribute)
     {
         var parameterName = parameter.Name!;
         var bindingSource = routeTemplate.Contains("{" + parameterName + "}", StringComparison.OrdinalIgnoreCase)
             ? BindingSource.Path
-            : DetermineBindingSource(parameter);
+            : DetermineBindingSource(parameter, httpMethodAttribute);
 
         var parameterAttributes = new List<Attribute>();
         var bindingSourceAttribute = ToAttribute(bindingSource);
@@ -97,7 +97,7 @@ public abstract class BaseConventionHandler : IConventionHandler
         };
     }
 
-    protected abstract BindingSource DetermineBindingSource(ParameterInfo parameter);
+    protected abstract BindingSource DetermineBindingSource(ParameterInfo parameter, HttpMethodAttribute httpMethodAttribute);
 
     protected static bool IsSimpleType(Type type)
     {

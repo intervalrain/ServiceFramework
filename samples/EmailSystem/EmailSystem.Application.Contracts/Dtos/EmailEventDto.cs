@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace EmailSystem.Application.Contracts.Dtos;
 
@@ -14,6 +15,7 @@ public class EmailEventDto
     [Required]
     [MaxLength(200)]
     [DefaultValue("System Notification")]
+    [JsonPropertyName("subject")]
     public string Subject { get; set; } = string.Empty;
     
     /// <summary>
@@ -21,6 +23,7 @@ public class EmailEventDto
     /// All other fields will be formatted into the email body.
     /// </summary>
     [Required]
+    [JsonPropertyName("data")]
     public Dictionary<string, object> Data { get; set; } = new Dictionary<string, object>
     {
         ["to"] = "rain.hu@advantech.com",

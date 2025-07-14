@@ -27,7 +27,7 @@ public class DefaultAutoConventionRouteBuilder : IAutoConventionRouteBuilder
     {
         var routePrefix = setting.RoutePrefix ?? "api";
         var routeName = controllerName.ToLowerInvariant();
-        return $"/nats/{routePrefix}/{routeName}";
+        return $"/{routePrefix}/{routeName}";
     }
 
     public string BuildActionRoute(ControllerModel controllerModel, string controllerRoute, MethodInfo method, string? endpointName, AutoConventionSetting setting)
