@@ -37,12 +37,14 @@ public abstract class NatsService : INatsService
             .Where(m => m.Name.EndsWith("Async") && m.ReturnType.IsGenericType)
             .Select(method =>
             {
+                
                 var subjectAttr = method.GetCustomAttribute<SubjectAttribute>();
                 var jetStreamAttr = method.GetCustomAttribute<JetStreamAttribute>();
                 var jetStreamPullAttr = method.GetCustomAttribute<JetStreamPullAttribute>();
                 
                 var natsMethodInfo = new NatsMethodInfo
                 {
+                    ServiceName = ServiceName,
                     Method = method,
                     SubjectName = subjectAttr?.CustomSubject ?? $"{GetSubjectPrefix()}.{method.Name.ToLower().Replace("async", "")}",
                     ServiceMethod = method,
@@ -92,6 +94,7 @@ public abstract class NatsService : INatsService
 
 public class NatsMethodInfo
 {
+    public string ServiceName { get; set; } = string.Empty;
     public MethodInfo Method { get; set; } = null!;
     public string SubjectName { get; set; } = string.Empty;
     public MethodInfo ServiceMethod { get; set; } = null!;

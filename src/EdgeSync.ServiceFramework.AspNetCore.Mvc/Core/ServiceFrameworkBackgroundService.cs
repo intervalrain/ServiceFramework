@@ -114,6 +114,28 @@ public class ServiceFrameworkBackgroundService : BackgroundService
             {
                 var natsMethods = GetNatsMethodsWithDecision(service);
 
+                var pubsubMethods = natsMethods.Where(m => !m.IsRequestResponse);
+                var reqrspMethods = natsMethods.Where(m => m.IsRequestResponse);
+
+                if (reqrspMethods.Any())
+                {
+                    var groupedReqRspMethods = reqrspMethods.GroupBy(m => m.ServiceName);
+                    foreach (var group in groupedReqRspMethods)
+                    {
+                        var serviceName = group.Key;
+                        var methods = group.ToList();
+                        var server = CreateSvcServer(serviceName, methods, connection, stoppingToken);
+                        
+                        // Setup request-response service for this service group
+                        var task = Task.Run(async () =>
+                        {
+                            await SetupRequestResponseServiceGroup(connection, serviceType, serviceName, methods, stoppingToken);
+                        }, stoppingToken);
+                        
+                        subscriptionTasks.Add(task);
+                    }
+                }
+
                 foreach (var natsMethod in natsMethods)
                 {
                     // if (natsMethod.IsRequestResponse)
@@ -146,6 +168,84 @@ public class ServiceFrameworkBackgroundService : BackgroundService
 
         _logger.LogInformation("All NATS subscriptions started via reflection");
         await Task.WhenAll(subscriptionTasks);
+    }
+
+    private async Task<INatsSvcServer> CreateSvcServer(string serviceName, List<NatsMethodInfo> methods, INatsConnection connection, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Setting up request-response service '{ServiceName}' with {MethodCount} methods",
+            serviceName, methods.Count);
+
+        // create server
+        _logger.LogInformation("Setting up NATS service group for request-response: '{ServiceName}' with {MethodCount} methods on connection {ConnectionId}",
+            serviceName, methods.Count, connection.ServerInfo?.ClientId);
+
+        // Create service context
+        var svcContext = new NatsSvcContext(connection);
+
+        // Create service configuration using the service name
+        var serviceVersion = "1.0.0";
+        var config = new NatsSvcConfig(serviceName, serviceVersion);
+
+        // Add service to context
+        var svcServer = await svcContext.AddServiceAsync(config, cancellationToken);
+        _subscriptions.Add(svcServer);
+
+        return svcServer;
+    }
+
+    private async Task SetupRequestResponseServiceGroup(INatsConnection connection, Type serviceType, string serviceName, List<NatsMethodInfo> methods, CancellationToken cancellationToken)
+    {
+        try
+        {
+            _logger.LogInformation("Setting up NATS service group for request-response: '{ServiceName}' with {MethodCount} methods on connection {ConnectionId}",
+                serviceName, methods.Count, connection.ServerInfo?.ClientId);
+
+            // Create service context
+            var svcContext = new NatsSvcContext(connection);
+
+            // Create service configuration using the service name
+            var serviceVersion = "1.0.0";
+            var config = new NatsSvcConfig(serviceName, serviceVersion);
+
+            // Add service to context
+            var svcServer = await svcContext.AddServiceAsync(config, cancellationToken);
+            _subscriptions.Add(svcServer);
+
+            // Add all endpoints for this service
+            foreach (var methodInfo in methods)
+            {
+                var methodParams = methodInfo.Method.GetParameters();
+                var endpointName = methodInfo.SubjectAttribute?.EndpointName ?? methodInfo.Method.Name.ToLower().Replace("async", "");
+
+                if (methodParams.Length > 0)
+                {
+                    var requestType = methodParams[0].ParameterType;
+
+                    // Create and add endpoint using reflection to handle generic types
+                    var addEndpointMethod = GetType().GetMethod(nameof(AddServiceEndpoint), BindingFlags.NonPublic | BindingFlags.Instance)
+                        ?.MakeGenericMethod(requestType);
+
+                    if (addEndpointMethod != null)
+                    {
+                        await (Task)addEndpointMethod.Invoke(this,
+                            [svcServer, serviceType, methodInfo, endpointName, cancellationToken])!;
+                    }
+                }
+                else
+                {
+                    // Handle parameterless methods (like GetListAsync)
+                    await AddParameterlessServiceEndpoint(svcServer, serviceType, methodInfo, endpointName, cancellationToken);
+                }
+            }
+
+            _logger.LogInformation("Successfully set up NATS service group: '{ServiceName}' with {MethodCount} methods on connection {ConnectionId}",
+                serviceName, methods.Count, connection.ServerInfo?.ClientId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to setup NATS service group: '{ServiceName}' on connection {ConnectionId}",
+                serviceName, connection.ServerInfo?.ClientId);
+        }
     }
 
     private async Task SetupRequestResponseService(INatsConnection connection, Type serviceType, NatsMethodInfo methodInfo, CancellationToken cancellationToken)
@@ -379,6 +479,7 @@ public class ServiceFrameworkBackgroundService : BackgroundService
 
             var natsMethodInfo = new NatsMethodInfo
             {
+                ServiceName = service.ServiceName,
                 Method = method,
                 SubjectName = subjectAttr?.CustomSubject ?? $"{service.GetSubjectPrefix()}.{method.Name.ToLower().Replace("async", "")}",
                 ServiceMethod = method,
