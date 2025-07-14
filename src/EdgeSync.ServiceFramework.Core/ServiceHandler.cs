@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 
 using EdgeSync.ServiceFramework.Attributes;
 using EdgeSync.ServiceFramework.Contracts;
+using EdgeSync.ServiceFramework.Core;
 using EdgeSync.ServiceFramework.Enums;
 using EdgeSync.ServiceFramework.Exceptions;
 using EdgeSync.ServiceFramework.JetStream;

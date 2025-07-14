@@ -1,3 +1,7 @@
+using System.Collections.Concurrent;
+
+using EdgeSync.ServiceFramework.Core;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -38,9 +42,11 @@ public class JetStreamClientFactory : IJetStreamClientFactory
     /// <returns>A new MsgBrokerJetStreamClient instance</returns>
     public IBrokerJetStreamClient CreateMsgBrokerClient()
     {
+        var connectionSettings = GetConnectionSettings("broker");
         return new MsgBrokerJetStreamClient(
             _loggerFactory.CreateLogger<JetStreamClient>(), 
-            GetConnectionFactory("broker"));
+            _natsConnectionFactory,
+            connectionSettings);
     }
 
     /// <summary>
@@ -49,9 +55,11 @@ public class JetStreamClientFactory : IJetStreamClientFactory
     /// <returns>A new MsgBusJetStreamClient instance</returns>
     public IBusJetStreamClient CreateMsgBusClient()
     {
+        var connectionSettings = GetConnectionSettings("bus");
         return new MsgBusJetStreamClient(
             _loggerFactory.CreateLogger<JetStreamClient>(), 
-            GetConnectionFactory("bus"));
+            _natsConnectionFactory,
+            connectionSettings);
     }
 
     /// <summary>
@@ -59,67 +67,32 @@ public class JetStreamClientFactory : IJetStreamClientFactory
     /// </summary>
     /// <param name="name">The name of the connection to use</param>
     /// <returns>A JetStreamClient instance</returns>
-    public IJetStreamClient CreateClient(string name)
+    public IJetStreamClient CreateClient(string? name = null)
     {
+        var connectionSettings = GetConnectionSettings(name);
         return new JetStreamClient(
             _loggerFactory.CreateLogger<JetStreamClient>(), 
-            GetConnectionFactory(name));
-    }
-
-    private INatsConnectionFactory GetConnectionFactory(string connectionName)
-    {
-        if (string.IsNullOrEmpty(connectionName) || 
-            !_options.Connections.TryGetValue(connectionName, out var connectionSettings))
-        {
-            return _natsConnectionFactory;
-        }
-
-        return new NamedNatsConnectionFactory(
-            _loggerFactory.CreateLogger<NamedNatsConnectionFactory>(), 
+            _natsConnectionFactory,
             connectionSettings);
     }
-}
 
-/// <summary>
-/// A connection factory that uses specific connection settings
-/// </summary>
-internal class NamedNatsConnectionFactory : INatsConnectionFactory
-{
-    private readonly ILogger<NamedNatsConnectionFactory> _logger;
-    private readonly NatsConnectionSettings _connectionSettings;
-
-    public NamedNatsConnectionFactory(ILogger<NamedNatsConnectionFactory> logger, NatsConnectionSettings connectionSettings)
+    private NatsConnectionSettings? GetConnectionSettings(string? connectionName)
     {
-        _logger = logger;
-        _connectionSettings = connectionSettings;
-    }
-
-    public async Task<INatsConnection> CreateConnectionAsync(string url = "", string credFile = "", CancellationToken cancellationToken = default)
-    {
-        try
+        if (string.IsNullOrEmpty(connectionName))
         {
-            var connectionUrl = !string.IsNullOrEmpty(url) ? url : _connectionSettings.Url ?? throw new InvalidOperationException("Nats Url should not be empty");
-            var connectionCredFile = !string.IsNullOrEmpty(credFile) ? credFile : _connectionSettings.CredFile;
-
-            var natOpts = NatsOpts.Default with
+            // Use default connection if no name specified
+            if (!string.IsNullOrEmpty(_options.DefaultConnection) &&
+                _options.Connections.TryGetValue(_options.DefaultConnection, out var defaultSettings))
             {
-                Name = _connectionSettings.Name,
-                Url = connectionUrl,
-                AuthOpts = new NatsAuthOpts
-                {
-                    CredsFile = connectionCredFile
-                },
-                SerializerRegistry = _connectionSettings.NatsSerializerRegistry
-            };
+                return defaultSettings;
+            }
+            
+            // Fallback to first available connection
+            return _options.Connections.Values.FirstOrDefault();
+        }
 
-            var natsConnection = await NatsConnClient.CreateClientConnectionAsync(natOpts, _logger, cancellationToken: cancellationToken);
-            _logger.LogInformation("NATS connection established for '{ConnectionName}'. {natOpts}", _connectionSettings.Name, natOpts);
-            return natsConnection;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to establish NATS connection for '{ConnectionName}'.", _connectionSettings.Name);
-            throw;
-        }
+        // Return specific named connection settings
+        _options.Connections.TryGetValue(connectionName, out var settings);
+        return settings;
     }
 }

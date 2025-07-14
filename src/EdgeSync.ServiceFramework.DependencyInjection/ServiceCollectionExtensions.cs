@@ -74,15 +74,47 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IJetStreamClientFactory, JetStreamClientFactory>();
         services.AddSingleton<INatsConnectionFactory, NatsConnectionFactory>();
 
-        if (ServiceConfig.MsgBusUrl != null)
+        // Register keyed INatsConnection for each connection from ServiceFrameworkOptions.Connections
+        foreach (var connectionKvp in options.Connections)
         {
-            // Register INatsConnection properly using the service provider
-            services.AddSingleton<INatsConnection>(sp =>
+            var connectionName = connectionKvp.Key;
+            var connectionSettings = connectionKvp.Value;
+            
+            // Ensure connection has a serializer registry (use default if not set)
+            if (connectionSettings.NatsSerializerRegistry == null || 
+                connectionSettings.NatsSerializerRegistry == NatsDefaultSerializerRegistry.Default)
+            {
+                connectionSettings.NatsSerializerRegistry = options.DefaultSerializerRegistry;
+            }
+            
+            services.AddKeyedSingleton<INatsConnection>(connectionName, (sp, key) =>
             {
                 var factory = sp.GetRequiredService<INatsConnectionFactory>();
-                return factory.CreateConnectionAsync().GetAwaiter().GetResult();
+                return factory.CreateConnectionAsync(connectionSettings).GetAwaiter().GetResult();
             });
         }
+
+        // Register default INatsConnection (without key) using DefaultConnection or fallback
+        services.AddSingleton<INatsConnection>(sp =>
+        {
+            // Use DefaultConnection if specified, this will reuse the same singleton instance
+            if (!string.IsNullOrEmpty(options.DefaultConnection) && 
+                options.Connections.ContainsKey(options.DefaultConnection))
+            {
+                return sp.GetRequiredKeyedService<INatsConnection>(options.DefaultConnection);
+            }
+            
+            // Fallback to first available connection if DefaultConnection not specified
+            if (options.Connections.Any())
+            {
+                var firstConnectionName = options.Connections.Keys.First();
+                return sp.GetRequiredKeyedService<INatsConnection>(firstConnectionName);
+            }
+            
+            // Last resort: use factory with legacy config
+            var factory = sp.GetRequiredService<INatsConnectionFactory>();
+            return factory.CreateConnectionAsync().GetAwaiter().GetResult();
+        });
 
         services.AddSingleton<IKVStore, KVStoreClient>();
 
