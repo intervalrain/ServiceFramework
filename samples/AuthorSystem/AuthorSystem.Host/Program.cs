@@ -10,6 +10,7 @@ using EdgeSync.ServiceFramework.Core.Serialization;
 using EdgeSync.ServiceFramework.DependencyInjection;
 
 using NATS.Client.Core;
+using NATS.Client.Serializers.Json;
 
 using Serilog;
 using Serilog.Enrichers.CallerInfo;
@@ -73,7 +74,7 @@ public class Program
                 options.DefaultConnection = "bus";
                 options.AddConnection("bus", Environment.GetEnvironmentVariable("MSG_BUS_URL") ?? "nats://localhost:4223")
                     .WithCredFile(Environment.GetEnvironmentVariable("MSG_BUS_CREDFILE") ?? string.Empty)
-                    .WithSerializerRegistry(NatsDefaultSerializerRegistry.Default);
+                    .WithSerializerRegistry(NatsJsonSerializerRegistry.Default);
 
                 options.AddConnection("broker", Environment.GetEnvironmentVariable("MSG_BROKER_URL") ?? "nats://localhost:4222")
                     .WithCredFile(Environment.GetEnvironmentVariable("MSG_BROKER_CREDFILE") ?? string.Empty)
