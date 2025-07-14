@@ -1,3 +1,6 @@
+using EdgeSync.ServiceFramework.Abstractions;
+using EdgeSync.ServiceFramework.Abstractions.JetStream;
+
 using Microsoft.Extensions.Logging;
 
 using NATS.Client.Core;
@@ -6,7 +9,7 @@ using NATS.Client.JetStream.Models;
 using NATS.Client.KeyValueStore;
 using NATS.Net;
 
-namespace EdgeSync.ServiceFramework.JetStream;
+namespace EdgeSync.ServiceFramework.Core.JetStream;
 
 public class MsgBrokerJetStreamClient : JetStreamClient, IBrokerJetStreamClient
 {

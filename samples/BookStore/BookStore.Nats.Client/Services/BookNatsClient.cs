@@ -1,9 +1,16 @@
 using BookStore.Application.Dtos;
 using BookStore.Application.Events;
 using BookStore.Nats.Client.Errors;
-using EdgeSync.ServiceFramework.JetStream;
+
+using EdgeSync.ServiceFramework.Abstractions.JetStream;
+
+
 using ErrorOr;
+
+
 using Microsoft.Extensions.Logging;
+
+
 using System.Text;
 using System.Text.Json;
 

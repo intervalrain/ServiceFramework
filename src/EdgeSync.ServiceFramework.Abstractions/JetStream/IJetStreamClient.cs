@@ -2,7 +2,7 @@ using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
 
-namespace EdgeSync.ServiceFramework.JetStream;
+namespace EdgeSync.ServiceFramework.Abstractions.JetStream;
 
 public interface IBrokerJetStreamClient : IJetStreamClient {}
 

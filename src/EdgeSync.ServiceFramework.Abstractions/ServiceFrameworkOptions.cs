@@ -1,6 +1,6 @@
 using NATS.Client.Core;
 
-namespace EdgeSync.ServiceFramework;
+namespace EdgeSync.ServiceFramework.Abstractions;
 
 /// <summary>
 /// Configuration options for Service Framework with multiple NATS connections support

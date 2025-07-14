@@ -1,7 +1,10 @@
 using System.Reflection;
 
-
-using EdgeSync.ServiceFramework.JetStream;
+using EdgeSync.ServiceFramework.Abstractions;
+using EdgeSync.ServiceFramework.Abstractions.JetStream;
+using EdgeSync.ServiceFramework.Core;
+using EdgeSync.ServiceFramework.Core.JetStream;
+using EdgeSync.ServiceFramework.Core.KeyValueStore;
 using EdgeSync.ServiceFramework.KeyValueStore;
 
 using Microsoft.Extensions.Configuration;

@@ -1,14 +1,14 @@
 using System.Text;
 using System.Text.RegularExpressions;
 
+using EdgeSync.ServiceFramework.Abstractions.JetStream;
+
 using EdgeSync.ServiceFramework.Contracts;
 using EdgeSync.ServiceFramework.Exceptions;
 
-using EdgeSync.ServiceFramework.JetStream;
-
 using Microsoft.Extensions.Logging;
 
-namespace EdgeSync.ServiceFramework;
+namespace EdgeSync.ServiceFramework.Core;
 
 /// <summary>
 /// Base class for handling events in the ShadowAgent application.

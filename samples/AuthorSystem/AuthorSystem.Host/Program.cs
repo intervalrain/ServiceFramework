@@ -9,7 +9,6 @@ using EdgeSync.ServiceFramework.AspNetCore.Mvc;
 using EdgeSync.ServiceFramework.Core.Serialization;
 using EdgeSync.ServiceFramework.DependencyInjection;
 
-using NATS.Client.Core;
 using NATS.Client.Serializers.Json;
 
 using Serilog;

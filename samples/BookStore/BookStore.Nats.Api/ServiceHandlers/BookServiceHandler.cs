@@ -2,10 +2,10 @@ using BookStore.Application.Dtos;
 using BookStore.Application.Services;
 using EdgeSync.ServiceFramework;
 using EdgeSync.ServiceFramework.Attributes;
-using EdgeSync.ServiceFramework.JetStream;
-using NATS.Client.Core;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
+using EdgeSync.ServiceFramework.Core;
+using EdgeSync.ServiceFramework.Abstractions.JetStream;
 
 namespace BookStore.Nats.Api.ServiceHandlers;
 
