@@ -6,8 +6,8 @@ using BookStore.Application.Events;
 using BookStore.Application.Services;
 
 
-using EdgeSync.ServiceFramework;
 using EdgeSync.ServiceFramework.Abstractions.JetStream;
+using EdgeSync.ServiceFramework.Abstractions.Models;
 using EdgeSync.ServiceFramework.Core;
 
 

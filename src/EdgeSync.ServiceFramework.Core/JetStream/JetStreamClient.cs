@@ -1,5 +1,6 @@
 using EdgeSync.ServiceFramework.Abstractions;
 using EdgeSync.ServiceFramework.Abstractions.JetStream;
+using EdgeSync.ServiceFramework.Abstractions.Models;
 
 using Microsoft.Extensions.Logging;
 

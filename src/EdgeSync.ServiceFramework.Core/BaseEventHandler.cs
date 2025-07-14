@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 
 using EdgeSync.ServiceFramework.Abstractions.JetStream;
+using EdgeSync.ServiceFramework.Abstractions.Models;
 
 using EdgeSync.ServiceFramework.Contracts;
 using EdgeSync.ServiceFramework.Exceptions;
@@ -41,7 +42,7 @@ public abstract class BaseEventHandler : MessageTransportBase
     /// <remarks>
     /// This is used to provide a default JetStream client for the event handler.
     /// </remarks>
-    protected abstract JetStreamConfigOptions JStreamCfgOpts { get; set; }
+    protected JetStreamConfigOptions JStreamCfgOpts { get; set; } 
 
     /// <summary>
     /// Lazy initialization of the consumer configuration options.
@@ -49,7 +50,7 @@ public abstract class BaseEventHandler : MessageTransportBase
     /// <remarks>
     /// This is used to configure the consumer settings such as durable name, ack policy, etc.
     /// </remarks>
-    protected abstract ConsumerConfigOptions ConsumerCfgOpts { get; set;}
+    protected ConsumerConfigOptions ConsumerCfgOpts { get; set; }
 
     /// <summary>
     /// Legacy constructor for backward compatibility
@@ -62,12 +63,17 @@ public abstract class BaseEventHandler : MessageTransportBase
         DefaultLazy = new Lazy<IJetStreamClient>(() => broker); // Use broker as default for backward compatibility
         Logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-        JStreamCfgOpts = JStreamCfgOpts ?? new JetStreamConfigOptions();
-        JStreamCfgOpts.Name = StreamName;
-        JStreamCfgOpts.Subjects = SubjectName.Split(',').Select(s => s.Trim()).ToArray();
-        ConsumerCfgOpts = ConsumerCfgOpts ?? new ConsumerConfigOptions();
-        ConsumerCfgOpts.DurableName = ConsumerName;
-        ConsumerCfgOpts.Name = ConsumerName;
+        JStreamCfgOpts = JetStreamConfigOptions.Default with
+        {
+            Name = StreamName,
+            Subjects = SubjectName.Split(',').Select(s => s.Trim()).ToArray()
+        };
+
+        ConsumerCfgOpts = ConsumerConfigOptions.Default with
+        {
+            DurableName = ConsumerName,
+            Name = ConsumerName
+        };
     }
 
     /// <summary>
@@ -83,12 +89,18 @@ public abstract class BaseEventHandler : MessageTransportBase
         string connectionName = "Broker") : base(factory, connectionName)
     {
         Logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        JStreamCfgOpts = JStreamCfgOpts ?? new JetStreamConfigOptions();
-        JStreamCfgOpts.Name = StreamName;
-        JStreamCfgOpts.Subjects = SubjectName.Split(',').Select(s => s.Trim()).ToArray();
-        ConsumerCfgOpts = ConsumerCfgOpts ?? new ConsumerConfigOptions();
-        ConsumerCfgOpts.DurableName = ConsumerName;
-        ConsumerCfgOpts.Name = ConsumerName;
+        
+        JStreamCfgOpts = JetStreamConfigOptions.Default with
+        {
+            Name = StreamName,
+            Subjects = SubjectName.Split(',').Select(s => s.Trim()).ToArray()
+        };
+
+        ConsumerCfgOpts = ConsumerConfigOptions.Default with
+        {
+            DurableName = ConsumerName,
+            Name = ConsumerName
+        };
     }
 
     /// <summary>
