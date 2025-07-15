@@ -1,8 +1,7 @@
 <Project>
   <PropertyGroup>
     <LangVersion>latest</LangVersion>
-    <Version>1.2.1
-    </Version>
+    <Version>1.2.1</Version>
     <Authors>Rain Hu, Kevin Chien</Authors>
     <Company>Advantech</Company>
     
