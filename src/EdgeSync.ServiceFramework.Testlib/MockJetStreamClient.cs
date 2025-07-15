@@ -1,6 +1,8 @@
 using System.Text;
 
-using EdgeSync.ServiceFramework.JetStream;
+using EdgeSync.ServiceFramework.Abstractions.JetStream;
+using EdgeSync.ServiceFramework.Abstractions.Models;
+
 
 using NATS.Client.Core;
 using NATS.Client.JetStream;

@@ -1,5 +1,5 @@
+using EdgeSync.ServiceFramework.Abstractions.JetStream;
 using EdgeSync.ServiceFramework.Core.HealthChecks;
-using EdgeSync.ServiceFramework.JetStream;
 
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;

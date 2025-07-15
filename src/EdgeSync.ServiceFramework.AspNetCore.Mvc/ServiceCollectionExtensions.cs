@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json;
 
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Abstractions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core;
@@ -19,6 +20,13 @@ namespace EdgeSync.ServiceFramework.AspNetCore.Mvc;
 
 public static class ServiceCollectionExtensions
 {
+    private static JsonSerializerOptions _defaultOptions = new JsonSerializerOptions
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DictionaryKeyPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true,
+    };
+
     public static IServiceCollection AddAutoConvention<TAutoConventionRouteBuilder>(this IServiceCollection services, Action<SwaggerGenOptions>? setupAction = null)
         where TAutoConventionRouteBuilder : class, IAutoConventionRouteBuilder
     {
@@ -29,6 +37,12 @@ public static class ServiceCollectionExtensions
         services.AddSubscriptionHandlers();
         services.AddHostedService<ServiceFrameworkBackgroundService>();
 
+        services.ConfigureHttpJsonOptions(opts =>
+        {
+            opts.SerializerOptions.PropertyNamingPolicy = _defaultOptions.PropertyNamingPolicy;
+            opts.SerializerOptions.DictionaryKeyPolicy = _defaultOptions.DictionaryKeyPolicy;
+            opts.SerializerOptions.WriteIndented = _defaultOptions.WriteIndented;
+        });
         services.AddHttpContextAccessor();
 
         return services;
@@ -58,7 +72,12 @@ public static class ServiceCollectionExtensions
     {
         services.AddSingleton<IAutoConventionRouteBuilder, TAutoConventionRouteBuilder>();
         services.AddSingleton<IConventionDecisionMaker, ConventionDecisionMaker>();
-        services.AddControllers();
+        services.AddControllers().AddJsonOptions(opts =>
+        {
+            opts.JsonSerializerOptions.PropertyNamingPolicy = _defaultOptions.PropertyNamingPolicy;
+            opts.JsonSerializerOptions.DictionaryKeyPolicy = _defaultOptions.DictionaryKeyPolicy;
+            opts.JsonSerializerOptions.WriteIndented = _defaultOptions.WriteIndented;
+        });
         services.AddTransient<ApplicationServiceConvention>();
         services.AddSingleton<IConfigureOptions<MvcOptions>, ConfigureMvcConvention>();
 
@@ -100,11 +119,9 @@ public static class ServiceCollectionExtensions
                     {
                         services.AddScoped(serviceInterface, serviceType);
                     }
+                    
                 }
-                else
-                {
-                    services.AddScoped(serviceType);
-                }
+                services.AddScoped(serviceType);
             }
         }
 

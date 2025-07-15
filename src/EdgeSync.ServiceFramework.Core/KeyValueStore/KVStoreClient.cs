@@ -1,6 +1,8 @@
 using System.Text.Json;
 
-using EdgeSync.ServiceFramework.JetStream;
+using EdgeSync.ServiceFramework.Abstractions;
+using EdgeSync.ServiceFramework.Core.JetStream;
+using EdgeSync.ServiceFramework.KeyValueStore;
 
 using Microsoft.Extensions.Logging;
 
@@ -8,7 +10,7 @@ using NATS.Client.Core;
 
 using NATS.Client.KeyValueStore;
 
-namespace EdgeSync.ServiceFramework.KeyValueStore;
+namespace EdgeSync.ServiceFramework.Core.KeyValueStore;
 
 public class KVStoreClient : MsgBusJetStreamClient, IKVStore
 {

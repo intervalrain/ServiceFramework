@@ -5,19 +5,19 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
+using EdgeSync.ServiceFramework.Abstractions.JetStream;
+
 using EdgeSync.ServiceFramework.Attributes;
 using EdgeSync.ServiceFramework.Contracts;
-using EdgeSync.ServiceFramework.Core;
 using EdgeSync.ServiceFramework.Enums;
 using EdgeSync.ServiceFramework.Exceptions;
-using EdgeSync.ServiceFramework.JetStream;
 
 using Microsoft.Extensions.Logging;
 
 using NATS.Client.Core;
 using NATS.Client.Services;
 
-namespace EdgeSync.ServiceFramework;
+namespace EdgeSync.ServiceFramework.Core;
 
 /// <summary>
 /// Represents a framework for managing NATS (NATS.io) service connections and operations.

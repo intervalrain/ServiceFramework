@@ -1,9 +1,8 @@
-using EdgeSync.ServiceFramework.JetStream;
+using EdgeSync.ServiceFramework.Abstractions.JetStream;
 
 using Microsoft.Extensions.Hosting;
-using NATS.Client.Core;
 
-namespace EdgeSync.ServiceFramework;
+namespace EdgeSync.ServiceFramework.Core;
 
 public abstract class MessageTransportBase : BackgroundService
 {

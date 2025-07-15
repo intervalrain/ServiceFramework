@@ -7,6 +7,17 @@
 格式基於 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)，
 並且本專案遵循 [語義化版本控制](https://semver.org/spec/v2.0.0.html)。
 
+## [1.2.1] - 2025-07-14
+### 功能增強
+- **StreamConfigOptions**: 將 StreamConfigOptions 改為可覆寫（virtual）屬性，使子類別能自訂 Stream 設定。
+- **ConsumerConfigOptions**: 將 ConsumerConfigOptions 改為可覆寫（virtual）屬性，使子類別能自訂 Consumer 設定。
+- **AutoConvention**: 調整 Request/Response 方法，支援官方 AddEndpointAsync 與 AddServiceAsync 的用法。
+
+## [1.2.0] - 2025-07-11
+### 新增功能
+- **AutoConvention**: 提供 NatsService 與 ApplicationConvention，簡化 NATS controller 的自動補全與註冊。
+- **HealthCheck&**: 新增 NatsConnectionHealthCheck，用於檢查 NATS 連線的健康狀態。
+
 ## [1.2.0] - 2025-07-11
 ### Added
 - **健康度檢查**: 提供 `NatsConnectionHealthCheck` 來檢查 NATS 的連線健康狀態。

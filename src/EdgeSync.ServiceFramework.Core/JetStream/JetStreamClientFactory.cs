@@ -1,13 +1,10 @@
-using System.Collections.Concurrent;
-
-using EdgeSync.ServiceFramework.Core;
+using EdgeSync.ServiceFramework.Abstractions;
+using EdgeSync.ServiceFramework.Abstractions.JetStream;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-using NATS.Client.Core;
-
-namespace EdgeSync.ServiceFramework.JetStream;
+namespace EdgeSync.ServiceFramework.Core.JetStream;
 
 /// <summary>
 /// Factory for creating JetStream clients

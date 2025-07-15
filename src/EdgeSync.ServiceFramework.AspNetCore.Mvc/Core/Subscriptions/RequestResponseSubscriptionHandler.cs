@@ -1,4 +1,3 @@
-using System.Text.Json;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
 using Microsoft.Extensions.Logging;
 

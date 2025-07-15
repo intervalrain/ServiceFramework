@@ -1,12 +1,12 @@
 using System.Collections.Concurrent;
 
-using EdgeSync.ServiceFramework.Core;
+using EdgeSync.ServiceFramework.Abstractions;
 
 using Microsoft.Extensions.Logging;
 
 using NATS.Client.Core;
 
-namespace EdgeSync.ServiceFramework;
+namespace EdgeSync.ServiceFramework.Core;
 
 public class NatsConnectionFactory : INatsConnectionFactory
 {

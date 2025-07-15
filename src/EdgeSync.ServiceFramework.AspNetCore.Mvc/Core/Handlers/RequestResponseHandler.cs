@@ -41,8 +41,13 @@ public class RequestResponseHandler : BaseConventionHandler
         return new HttpPostAttribute(route);
     }
 
-    protected override BindingSource DetermineBindingSource(ParameterInfo parameter)
+    protected override BindingSource DetermineBindingSource(ParameterInfo parameter, HttpMethodAttribute httpMethodAttribute)
     {
+        if (httpMethodAttribute is HttpGetAttribute)
+        {
+            return BindingSource.Query;
+        }
+
         // 檢查顯式綁定屬性
         if (parameter.GetCustomAttribute<FromBodyAttribute>() != null)
             return BindingSource.Body;
@@ -65,24 +70,5 @@ public class RequestResponseHandler : BaseConventionHandler
     {
         // Request/Response 特定配置
         // 可以添加額外的特定配置，如超時設定等
-    }
-
-    private string GetHttpMethodFromMethodName(string methodName)
-    {
-        var lowerName = methodName.ToLowerInvariant();
-        
-        if (lowerName.StartsWith("get") || lowerName.StartsWith("find") || lowerName.StartsWith("search"))
-            return "GET";
-        
-        if (lowerName.StartsWith("create") || lowerName.StartsWith("add"))
-            return "POST";
-        
-        if (lowerName.StartsWith("update") || lowerName.StartsWith("modify"))
-            return "PUT";
-        
-        if (lowerName.StartsWith("delete") || lowerName.StartsWith("remove"))
-            return "DELETE";
-        
-        return "POST";
     }
 }

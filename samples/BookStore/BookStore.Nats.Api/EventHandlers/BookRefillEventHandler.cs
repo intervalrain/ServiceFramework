@@ -1,9 +1,16 @@
 using System.Text;
 using System.Text.Json;
+
+
 using BookStore.Application.Events;
 using BookStore.Application.Services;
-using EdgeSync.ServiceFramework;
-using EdgeSync.ServiceFramework.JetStream;
+
+
+using EdgeSync.ServiceFramework.Abstractions.JetStream;
+using EdgeSync.ServiceFramework.Abstractions.Models;
+using EdgeSync.ServiceFramework.Core;
+
+
 using Microsoft.Extensions.Logging;
 
 using NATS.Client.JetStream.Models;

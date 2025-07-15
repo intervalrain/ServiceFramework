@@ -1,4 +1,4 @@
-namespace EdgeSync.ServiceFramework.JetStream;
+namespace EdgeSync.ServiceFramework.Abstractions.JetStream;
 
 /// <summary>
 /// Interface for the JetStream client factory
