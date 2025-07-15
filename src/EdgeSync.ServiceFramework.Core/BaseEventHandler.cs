@@ -42,7 +42,7 @@ public abstract class BaseEventHandler : MessageTransportBase
     /// <remarks>
     /// This is used to provide a default JetStream client for the event handler.
     /// </remarks>
-    protected JetStreamConfigOptions JStreamCfgOpts { get; set; } 
+    protected virtual JetStreamConfigOptions JStreamCfgOpts { get; set; } 
 
     /// <summary>
     /// Lazy initialization of the consumer configuration options.
@@ -50,7 +50,7 @@ public abstract class BaseEventHandler : MessageTransportBase
     /// <remarks>
     /// This is used to configure the consumer settings such as durable name, ack policy, etc.
     /// </remarks>
-    protected ConsumerConfigOptions ConsumerCfgOpts { get; set; }
+    protected virtual ConsumerConfigOptions ConsumerCfgOpts { get; set; }
 
     /// <summary>
     /// Legacy constructor for backward compatibility
