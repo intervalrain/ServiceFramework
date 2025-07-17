@@ -12,60 +12,36 @@ using NATS.Net;
 
 namespace EdgeSync.ServiceFramework.Core.JetStream;
 
-public class MsgBrokerJetStreamClient : JetStreamClient, IBrokerJetStreamClient
-{
-    public MsgBrokerJetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFactory natsConnectionFactory, NatsConnectionSettings? connectionSettings = null) 
-        : base(logger, natsConnectionFactory, connectionSettings)
-    {
-        // Use legacy config as fallback if connectionSettings is null
-        if (connectionSettings == null)
-        {
-            Url = ServiceConfig.MsgBrokerUrl;
-            UserCredFilePath = ServiceConfig.MsgBrokerCredFile;
-        }
-    }
-}
-
-public class MsgBusJetStreamClient : JetStreamClient, IBusJetStreamClient
-{
-    public MsgBusJetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFactory natsConnectionFactory, NatsConnectionSettings? connectionSettings = null) 
-        : base(logger, natsConnectionFactory, connectionSettings)
-    {
-        // Use legacy config as fallback if connectionSettings is null
-        if (connectionSettings == null)
-        {
-            Url = ServiceConfig.MsgBusUrl;
-            UserCredFilePath = ServiceConfig.MsgBusCredFile;
-        }
-    }
-
-}
-
 /// <summary>
 /// Represents a client for interacting with NATS JetStream.
 /// </summary>
 /// <remarks>
 /// Initializes a new instance of the <see cref="JetStreamClient"/> class.
 /// </remarks>
-/// <param name="logger">The logger instance to use for logging.</param>
-/// <param name="natsConnectionFactory">The connection factory for create nats connection instance.</param>
-/// <param name="connectionSettings">Optional connection settings to use instead of legacy config.</param>
-public class JetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFactory natsConnectionFactory, NatsConnectionSettings? connectionSettings = null) : IDisposable, IJetStreamClient
+public class JetStreamClient : IDisposable, IJetStreamClient
 {
     public INatsConnection? NatsConnection { get; private set; }
 
     private INatsJSContext? _jsCtx;
     private INatsJSStream? _jStream;
 
-    private readonly ILogger<JetStreamClient> _logger = logger;
+    private readonly ILogger<JetStreamClient> _logger;
     private CancellationTokenSource _cts = new CancellationTokenSource();
-
-    private readonly long _ackWait = ServiceConfig.NatsTimeout; // 10*1000 mseconds
 
     private readonly string _serviceUUID = Guid.NewGuid().ToString();
 
-    private readonly INatsConnectionFactory _natsConnectionFactory = natsConnectionFactory;
-    private readonly NatsConnectionSettings? _connectionSettings = connectionSettings;
+    private readonly INatsConnectionFactory _natsConnectionFactory;
+    private readonly NatsConnectionSettings? _connectionSettings;
+
+    /// <param name="logger">The logger instance to use for logging.</param>
+    /// <param name="natsConnectionFactory">The connection factory for create nats connection instance.</param>
+    /// <param name="connectionSettings">Optional connection settings to use instead of legacy config.</param>
+    public JetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFactory natsConnectionFactory, NatsConnectionSettings? connectionSettings = null)
+    {
+        _logger = logger;
+        _natsConnectionFactory = natsConnectionFactory;
+        _connectionSettings = connectionSettings;
+    }
 
     public string Url { get; set; } = string.Empty;
     public string UserCredFilePath { get; set; } = string.Empty;
@@ -154,7 +130,7 @@ public class JetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFac
             throw new ArgumentException("At least one subject must be provided in JetStreamConfigOptions", nameof(cfgOptions));
         }
 
-        if (consumerCfg.Name == null|| consumerCfg.Name.Trim().Length == 0)
+        if (consumerCfg.Name == null || consumerCfg.Name.Trim().Length == 0)
         {
             throw new ArgumentException("Consumer name must be provided in ConsumerConfig", nameof(consumerCfg));
         }
@@ -320,7 +296,7 @@ public class JetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFac
         return response.Data;
     }
 
-        public async Task<TR?> RequestAsync<T, TR>(string subject, T data, CancellationToken cancellationToken = default)
+    public async Task<TR?> RequestAsync<T, TR>(string subject, T data, CancellationToken cancellationToken = default)
     {
         await TryConnectAsync();
 
@@ -345,5 +321,33 @@ public class JetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFac
         if (NatsConnection != null)
             NatsConnection.DisposeAsync().AsTask().GetAwaiter().GetResult();
         NatsConnection = null;
+    }
+}
+
+public class MsgBrokerJetStreamClient : JetStreamClient, IBrokerJetStreamClient
+{
+    public MsgBrokerJetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFactory natsConnectionFactory, NatsConnectionSettings? connectionSettings = null) 
+        : base(logger, natsConnectionFactory, connectionSettings)
+    {
+        // Use legacy config as fallback if connectionSettings is null
+        if (connectionSettings == null)
+        {
+            Url = ServiceConfig.MsgBrokerUrl;
+            UserCredFilePath = ServiceConfig.MsgBrokerCredFile;
+        }
+    }
+}
+
+public class MsgBusJetStreamClient : JetStreamClient, IBusJetStreamClient
+{
+    public MsgBusJetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFactory natsConnectionFactory, NatsConnectionSettings? connectionSettings = null) 
+        : base(logger, natsConnectionFactory, connectionSettings)
+    {
+        // Use legacy config as fallback if connectionSettings is null
+        if (connectionSettings == null)
+        {
+            Url = ServiceConfig.MsgBusUrl;
+            UserCredFilePath = ServiceConfig.MsgBusCredFile;
+        }
     }
 }

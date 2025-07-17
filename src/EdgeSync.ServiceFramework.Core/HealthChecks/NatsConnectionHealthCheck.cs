@@ -22,23 +22,24 @@ public class NatsConnectionHealthCheck : IHealthCheck
     {
     }
 
-    public Task<HealthCheckResult> CheckHealthAsync(
+    public async Task<HealthCheckResult> CheckHealthAsync(
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            return Task.FromResult(_client.IsConnected()
+            await _client.TryConnectAsync();
+            return _client.IsConnected()
                 ? HealthCheckResult.Healthy("Bus: OK", data: new Dictionary<string, object> { ["is_connected"] = _client.IsConnected() })
-                : HealthCheckResult.Unhealthy("Bus: Connection lost", data: new Dictionary<string, object> { ["is_connected"] = _client.IsConnected() }));
+                : HealthCheckResult.Unhealthy("Bus: Connection lost", data: new Dictionary<string, object> { ["is_connected"] = _client.IsConnected() });
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "NATS connection check failed.");
-            return Task.FromResult(HealthCheckResult.Unhealthy("Bus: Connection check failed", data: new Dictionary<string, object>
+            return HealthCheckResult.Unhealthy("Bus: Connection check failed", data: new Dictionary<string, object>
             {
                 ["error"] = ex.Message
-            }));
+            });
         }
     }
 }

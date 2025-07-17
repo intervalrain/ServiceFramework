@@ -4,6 +4,7 @@ using BookStore.Domain.Repositories;
 using BookStore.Infrastructure.Repositories;
 
 using EdgeSync.ServiceFramework.Core.Serialization;
+using EdgeSync.ServiceFramework.Core.Extensions;
 using EdgeSync.ServiceFramework.DependencyInjection;
 
 using Microsoft.Extensions.DependencyInjection;

@@ -7,6 +7,7 @@ namespace EdgeSync.ServiceFramework.Abstractions;
 /// </summary>
 public class ServiceFrameworkOptions
 {
+    public const string SectionName = "ServiceFramework";
     /// <summary>
     /// Default connection name to use when not specified
     /// </summary>
@@ -21,37 +22,6 @@ public class ServiceFrameworkOptions
     /// Dictionary of named NATS connections
     /// </summary>
     public Dictionary<string, NatsConnectionSettings> Connections { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// Adds a new connection with the specified name and URL.
-    /// Provides a fluent API for connection configuration.
-    /// </summary>
-    /// <param name="name">The connection name</param>
-    /// <param name="url">The NATS URL</param>
-    /// <returns>A connection builder for fluent configuration</returns>
-    /// <exception cref="ArgumentException">Thrown when connection name already exists</exception>
-    public NatsConnectionBuilder AddConnection(string name, string url)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-            throw new ArgumentException("Connection name cannot be null or empty", nameof(name));
-        
-        if (string.IsNullOrWhiteSpace(url))
-            throw new ArgumentException("Connection URL cannot be null or empty", nameof(url));
-
-        // Duplicate name check
-        if (Connections.ContainsKey(name))
-            throw new ArgumentException($"Connection with name '{name}' already exists. Please use a unique connection name.");
-
-        var settings = new NatsConnectionSettings
-        {
-            Name = name,
-            Url = url,
-            NatsSerializerRegistry = DefaultSerializerRegistry
-        };
-
-        Connections[name] = settings;
-        return new NatsConnectionBuilder(settings);
-    }
 
     /// <summary>
     /// Validates the configuration for duplicate names and other issues

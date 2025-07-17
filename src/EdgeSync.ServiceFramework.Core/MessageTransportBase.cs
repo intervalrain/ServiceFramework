@@ -1,10 +1,8 @@
 using EdgeSync.ServiceFramework.Abstractions.JetStream;
 
-using Microsoft.Extensions.Hosting;
+namespace EdgeSync.ServiceFramework;
 
-namespace EdgeSync.ServiceFramework.Core;
-
-public abstract class MessageTransportBase : BackgroundService
+public abstract class MessageTransportBase
 {
     private readonly IJetStreamClientFactory? _jetStreamFactory;
     private readonly string? _connectionName;
@@ -41,7 +39,7 @@ public abstract class MessageTransportBase : BackgroundService
     /// Default JetStream client using the specified connection name.
     /// Uses lazy loading - only creates connection when accessed.
     /// </summary>
-    protected IJetStreamClient Default => DefaultLazy?.Value ?? throw new InvalidOperationException("Default client not initialized");
+    public IJetStreamClient Default => DefaultLazy?.Value ?? throw new InvalidOperationException("Default client not initialized");
 
     /// <summary>
     /// JetStream client for device communication.

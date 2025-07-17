@@ -8,8 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="ErrorOr" Version="2.0.1" />
-    <PackageReference Include="NATS.NET" Version="2.6.3" />
+    <PackageReference Include="ErrorOr" />
+    <PackageReference Include="NATS.NET" />
   </ItemGroup>
 
   <ItemGroup>

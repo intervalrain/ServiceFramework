@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
 using EdgeSync.ServiceFramework.Abstractions.JetStream;
@@ -12,38 +11,24 @@ using EdgeSync.ServiceFramework.Contracts;
 using EdgeSync.ServiceFramework.Enums;
 using EdgeSync.ServiceFramework.Exceptions;
 
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-using NATS.Client.Core;
 using NATS.Client.Services;
+using NATS.Net;
 
 namespace EdgeSync.ServiceFramework.Core;
 
 /// <summary>
 /// Represents a framework for managing NATS (NATS.io) service connections and operations.
 /// </summary>
-public abstract class ServiceHandler : MessageTransportBase, IDisposable
+public abstract class ServiceHandler : MessageTransportBase, IHostedService
 {
     private static readonly ConcurrentDictionary<Type, List<MethodInfo>> _endpointMethodsCache = new();
     private static readonly Regex SubjectParseRegex = new(@"^(?<protocol>[^\.]+)\.(?<groupID>[^\.]+)\.(?<deviceID>[^\.]+)\..*$", RegexOptions.Compiled);
 
-    private readonly SemaphoreSlim _connectionSemaphore = new(1, 1);
-    private readonly object _disposeLock = new();
-    private bool _disposed = false;
-
-    /// <summary>
-    /// NATS connection instance.
-    /// </summary>
-    private INatsConnection? _natsConnection;
-
-    /// <summary>
-    /// NATS service context instance.
-    /// </summary>
+    private readonly IJetStreamClient _client;
     private INatsSvcContext? _svcContext;
-
-    /// <summary>
-    /// NATS service server instance.
-    /// </summary>
     private INatsSvcServer? _svcServer;
 
     /// <summary>
@@ -69,80 +54,32 @@ public abstract class ServiceHandler : MessageTransportBase, IDisposable
     public ILogger<ServiceHandler> Logger { get; }
 
     /// <summary>
-    /// Legacy constructor for backward compatibility
-    /// </summary>
-    public ServiceHandler(
-        ILogger<ServiceHandler> logger,
-        INatsConnection connection,
-        IBrokerJetStreamClient broker,
-        IBusJetStreamClient bus) : base(broker, bus)
-    {
-        Logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        DefaultLazy = new Lazy<IJetStreamClient>(() => bus); // Use bus as default for backward compatibility
-        _natsConnection = DefaultLazy.Value.NatsConnection;
-    }
-
-    /// <summary>
     /// New constructor with named connection support
     /// </summary>
     public ServiceHandler(
         ILogger<ServiceHandler> logger,
         IJetStreamClientFactory factory,
-        string connectionName = "Bus") : base(factory, connectionName)
+        string connectionName = "bus") : base(factory, connectionName)
     {
         Logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _client = factory.CreateClient(connectionName);
     }
 
-    public override async Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
-        await ConnectAsync(cancellationToken);
-        await base.StartAsync(cancellationToken);
-    }
-
-    public override async Task StopAsync(CancellationToken cancellationToken)
-    {
-        await DisconnectAsync();
-        await base.StopAsync(cancellationToken);
-    }
-
-    public override void Dispose()
-    {
-        if (_disposed) return;
-
-        lock (_disposeLock)
-        {
-            if (_disposed) return;
-
-            try
-            {
-                DisconnectAsync().GetAwaiter().GetResult();
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "Error during disposal");
-            }
-            finally
-            {
-                _connectionSemaphore?.Dispose();
-                _disposed = true;
-                GC.SuppressFinalize(this);
-                base.Dispose();
-            }
-        }
-    }
-
-    private async Task InitializeServiceAsync(CancellationToken cancellationToken)
-    {
-        ThrowIfDisposed();
+        await _client.TryConnectAsync();
+        if (_client.NatsConnection == null) throw new NullReferenceException();
 
         try
         {
-            if (_natsConnection == null)
-                throw new InvalidOperationException("No connection to NATS");
+            _svcContext = _client.NatsConnection.CreateServicesContext();
+            _svcServer = await _svcContext.AddServiceAsync(new NatsSvcConfig(ServiceName, ServiceVersion)
+            {
+                QueueGroup = QueueGroup,
+            }, cancellationToken);
 
-            _svcContext = new NatsSvcContext(_natsConnection);
-            await AddServiceAsync(cancellationToken);
             await RegisterEndpointsAsync(cancellationToken);
+
             Logger.LogInformation("Service {ServiceName} initialized", ServiceName);
         }
         catch (Exception ex)
@@ -150,187 +87,115 @@ public abstract class ServiceHandler : MessageTransportBase, IDisposable
             Logger.LogError(ex, "Failed to initialize service {ServiceName}", ServiceName);
             throw;
         }
+
     }
 
-    protected override async Task ExecuteAsync(CancellationToken cancellationToken)
+    public async Task StopAsync(CancellationToken cancellationToken)
     {
-        if (string.IsNullOrEmpty(ServiceConfig.MsgBusUrl))
-        {
-            Logger.LogError("ServiceConfig.MsgBusUrl is not set. Cannot initialize service");
-            return;
-        }
-
-        await InitializeServiceAsync(cancellationToken);
-
-        var reconnectAttempt = 0;
-        const int maxReconnectAttempts = 100; // Allow for many reconnects as this is a background service
-
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            try
-            {
-                if (_natsConnection != null && _natsConnection.ConnectionState != NatsConnectionState.Open)
-                {
-                    reconnectAttempt++;
-                    Logger.LogWarning("NATS connection lost. Attempting to reconnect {ReconnectAttempt}/{MaxReconnects} for service {ServiceName}...", 
-                        reconnectAttempt, maxReconnectAttempts, ServiceName);
-                    
-                    await DisconnectAsync();
-                    await InitializeServiceAsync(cancellationToken);
-                    
-                    Logger.LogInformation("Service {ServiceName} successfully reconnected after {ReconnectAttempt} attempts", 
-                        ServiceName, reconnectAttempt);
-                    reconnectAttempt = 0; // Reset counter on successful reconnection
-                }
-                await Task.Delay(ReconnectionIntervalMs, cancellationToken);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                Logger.LogInformation("ExecuteAsync cancelled");
-                break;
-            }
-            catch (Exception ex)
-            {
-                reconnectAttempt++;
-                Logger.LogError(ex, "Error in ExecuteAsync for service {ServiceName} on attempt {ReconnectAttempt}/{MaxReconnects}", 
-                    ServiceName, reconnectAttempt, maxReconnectAttempts);
-
-                if (reconnectAttempt >= maxReconnectAttempts)
-                {
-                    Logger.LogError("Maximum reconnection attempts ({MaxReconnects}) reached for service {ServiceName}. Stopping service.", 
-                        maxReconnectAttempts, ServiceName);
-                    return;
-                }
-
-                await Task.Delay(ReconnectionIntervalMs, cancellationToken);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Lists all subclasses of the ServiceHandler class.
-    /// </summary>
-    /// <returns>A list of Type objects representing the subclasses of ServiceHandler.</returns>
-    public static List<Type> ListSubclasses()
-    {
-        var baseType = typeof(ServiceHandler);
-        var assembly = baseType.Assembly;
-
-        return assembly.GetTypes()
-            .Where(type => type.IsSubclassOf(baseType) && !type.IsAbstract)
-            .ToList();
-    }
-
-    /// <summary>
-    /// Establishes a connection to the NATS server.
-    /// </summary>
-    public async Task ConnectAsync(CancellationToken cancellationToken = default)
-    {
-        ThrowIfDisposed();
-
-        await _connectionSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            if (IsConnected()) return;
-
-            try
-            {
-                if (string.IsNullOrEmpty(ServiceConfig.MsgBusUrl))
-                    throw new InvalidOperationException("ServiceConfig.MsgBusUrl is not configured");
-
-                var opts = NatsOpts.Default with
-                {
-                    Url = ServiceConfig.MsgBusUrl,
-                    AuthOpts = NatsAuthOpts.Default with { CredsFile = ServiceConfig.MsgBusCredFile }
-                };
-
-                _natsConnection = await NatsConnClient.CreateClientConnectionAsync(opts, Logger, cancellationToken: cancellationToken);
-                _svcContext = new NatsSvcContext(_natsConnection);
-                Logger.LogInformation("Connected to NATS server");
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "Failed to create NATS client connection");
-                throw;
-            }
-        }
-        finally
-        {
-            _connectionSemaphore.Release();
-        }
-    }
-
-    /// <summary>
-    /// Disconnects from the NATS server and disposes of resources.
-    /// </summary>
-    public async Task DisconnectAsync()
-    {
-        if (_disposed) return;
-
         try
         {
             if (_svcServer != null)
             {
-                await _svcServer.DisposeAsync();
+                await _svcServer.StopAsync(cancellationToken);
                 _svcServer = null;
             }
-
+            
             _svcContext = null;
-
-            if (_natsConnection != null)
-            {
-                await _natsConnection.DisposeAsync();
-                _natsConnection = null;
-            }
-
-            Logger.LogInformation("Disconnected from NATS server");
+            
+            Logger.LogInformation("Service {ServiceName} stopped", ServiceName);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to disconnect from NATS server");
+            Logger.LogError(ex, "Error stopping service {ServiceName}", ServiceName);
         }
     }
 
     /// <summary>
-    /// Checks if the service is connected to the NATS server.
+    /// Registers endpoints based on methods decorated with SubjectAttribute.
     /// </summary>
-    /// <returns>True if connected, otherwise false.</returns>
-    public bool IsConnected()
+    protected async Task RegisterEndpointsAsync(CancellationToken cancellationToken = default)
     {
-        return _natsConnection?.ConnectionState == NatsConnectionState.Open;
-    }
-
-    /// <summary>
-    /// Handles statistics updates for a NATS service endpoint.
-    /// </summary>
-    /// <param name="endpoint">The NATS service endpoint.</param>
-    /// <param name="node">The JSON node containing statistics data.</param>
-    public void StatsHandler(INatsSvcEndpoint endpoint, JsonNode node)
-    {
-        Logger.LogInformation("NATS connection state changed for endpoint '{EndpointName}' to {State}",
-            endpoint.Name, node);
-    }
-
-    /// <summary>
-    /// Asynchronously adds a service to the NATS server with the specified configuration.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">Thrown when the NATS connection is not established.</exception>
-    /// <returns>A task that represents the asynchronous operation.</returns>
-    public async Task AddServiceAsync(CancellationToken cancellationToken = default)
-    {
-        ThrowIfDisposed();
-
-        if (_svcContext == null)
+        if (_svcServer == null)
         {
-            throw new InvalidOperationException("NATS connection is not established");
+            throw new InvalidOperationException("NATS service is not established");
         }
 
-        var config = new NatsSvcConfig(ServiceName, ServiceVersion)
-        {
-            QueueGroup = QueueGroup
-        };
+        var methods = _endpointMethodsCache.GetOrAdd(GetType(), t =>
+            t.GetMethods(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
+                .Where(m => m.GetCustomAttribute<SubjectAttribute>() != null)
+                .ToList());
 
-        _svcServer = await _svcContext.AddServiceAsync(config, cancellationToken);
+        foreach (var method in methods)
+        {
+            var attr = method.GetCustomAttribute<SubjectAttribute>();
+            if (attr == null) continue;
+
+            var endpointName = attr.EndpointName;
+            var subject = attr.CustomSubject ?? $"{ServiceName}.{ServiceVersion}.{endpointName}";
+
+            try
+            {
+                await RegisterSingleEndpointAsync(method, endpointName, subject, cancellationToken);
+                Logger.LogInformation("Registered endpoint '{EndpointName}' with subject '{Subject}'",
+                    endpointName, subject);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to register endpoint '{EndpointName}'", endpointName);
+                throw;
+            }
+        }
+    }
+
+
+    private async Task RegisterSingleEndpointAsync(MethodInfo method, string endpointName, string subject, CancellationToken cancellationToken)
+    {
+        var parameters = method.GetParameters();
+        if (parameters.Length != 2)
+        {
+            throw new InvalidOperationException(
+                $"Method '{method.Name}' must have exactly two parameters: ServiceMsgContext<T> and T");
+        }
+
+        var ctxParamType = parameters[0].ParameterType;
+        if (!ctxParamType.IsGenericType ||
+            ctxParamType.GetGenericTypeDefinition() != typeof(ServiceMsgContext<>))
+        {
+            throw new InvalidOperationException(
+                $"Method '{method.Name}' first parameter must be of type ServiceMsgContext<T>");
+        }
+
+        var msgType = ctxParamType.GetGenericArguments()[0];
+        var dataParamType = parameters[1].ParameterType;
+        if (dataParamType != msgType)
+        {
+            throw new InvalidOperationException(
+                $"Method '{method.Name}' second parameter type '{dataParamType}' must match T from ServiceMsgContext<T>");
+        }
+
+        if (method.ReturnType != typeof(ValueTask))
+        {
+            throw new InvalidOperationException($"Method '{method.Name}' must return ValueTask");
+        }
+
+        var handlerType = typeof(Func<,,>).MakeGenericType(
+            typeof(ServiceMsgContext<>).MakeGenericType(msgType),
+            msgType,
+            typeof(ValueTask));
+        var handler = Delegate.CreateDelegate(handlerType, this, method);
+
+        var addEndpointMethod = typeof(ServiceHandler)
+            .GetMethod(nameof(AddEndpointAsync))?
+            .MakeGenericMethod(msgType)
+            ?? throw new InvalidOperationException("Unexpected error: AddEndpointAsync method not found");
+
+        await (Task)addEndpointMethod.Invoke(this,
+        [
+            endpointName,
+            handler,
+            subject,
+            cancellationToken
+        ])!;
     }
 
     /// <summary>
@@ -348,7 +213,6 @@ public abstract class ServiceHandler : MessageTransportBase, IDisposable
         string? customSubject = null,
         CancellationToken cancellationToken = default)
     {
-        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(endpointName);
         ArgumentNullException.ThrowIfNull(handler);
 
@@ -490,109 +354,8 @@ public abstract class ServiceHandler : MessageTransportBase, IDisposable
     {
         ArgumentNullException.ThrowIfNull(subject);
         ArgumentNullException.ThrowIfNull(payload);
-        ThrowIfDisposed();
 
-        if (_natsConnection == null)
-        {
-            throw new InvalidOperationException("NATS connection is not established");
-        }
-
-        await _natsConnection.PublishAsync(subject, payload);
-    }
-
-    /// <summary>
-    /// Registers endpoints based on methods decorated with SubjectAttribute.
-    /// </summary>
-    protected async Task RegisterEndpointsAsync(CancellationToken cancellationToken = default)
-    {
-        ThrowIfDisposed();
-
-        if (_svcServer == null)
-        {
-            throw new InvalidOperationException("NATS service is not established");
-        }
-
-        var methods = GetEndpointMethods();
-
-        foreach (var method in methods)
-        {
-            var attr = method.GetCustomAttribute<SubjectAttribute>();
-            if (attr == null) continue;
-
-            var endpointName = attr.EndpointName;
-            var subject = attr.CustomSubject ?? $"{ServiceName}.{ServiceVersion}.{endpointName}";
-
-            try
-            {
-                await RegisterSingleEndpointAsync(method, endpointName, subject, cancellationToken);
-                Logger.LogInformation("Registered endpoint '{EndpointName}' with subject '{Subject}'",
-                    endpointName, subject);
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "Failed to register endpoint '{EndpointName}'", endpointName);
-                throw;
-            }
-        }
-    }
-
-    private List<MethodInfo> GetEndpointMethods()
-    {
-        var type = GetType();
-        return _endpointMethodsCache.GetOrAdd(type, t =>
-            t.GetMethods(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-                .Where(m => m.GetCustomAttribute<SubjectAttribute>() != null)
-                .ToList());
-    }
-
-    private async Task RegisterSingleEndpointAsync(MethodInfo method, string endpointName, string subject, CancellationToken cancellationToken)
-    {
-        var parameters = method.GetParameters();
-        if (parameters.Length != 2)
-        {
-            throw new InvalidOperationException(
-                $"Method '{method.Name}' must have exactly two parameters: ServiceMsgContext<T> and T");
-        }
-
-        var ctxParamType = parameters[0].ParameterType;
-        if (!ctxParamType.IsGenericType ||
-            ctxParamType.GetGenericTypeDefinition() != typeof(ServiceMsgContext<>))
-        {
-            throw new InvalidOperationException(
-                $"Method '{method.Name}' first parameter must be of type ServiceMsgContext<T>");
-        }
-
-        var msgType = ctxParamType.GetGenericArguments()[0];
-        var dataParamType = parameters[1].ParameterType;
-        if (dataParamType != msgType)
-        {
-            throw new InvalidOperationException(
-                $"Method '{method.Name}' second parameter type '{dataParamType}' must match T from ServiceMsgContext<T>");
-        }
-
-        if (method.ReturnType != typeof(ValueTask))
-        {
-            throw new InvalidOperationException($"Method '{method.Name}' must return ValueTask");
-        }
-
-        var handlerType = typeof(Func<,,>).MakeGenericType(
-            typeof(ServiceMsgContext<>).MakeGenericType(msgType),
-            msgType,
-            typeof(ValueTask));
-        var handler = Delegate.CreateDelegate(handlerType, this, method);
-
-        var addEndpointMethod = typeof(ServiceHandler)
-            .GetMethod(nameof(AddEndpointAsync))?
-            .MakeGenericMethod(msgType)
-            ?? throw new InvalidOperationException("Unexpected error: AddEndpointAsync method not found");
-
-        await (Task)addEndpointMethod.Invoke(this, new object[]
-        {
-            endpointName,
-            handler,
-            subject,
-            cancellationToken
-        })!;
+        await _client.PublishAsync(subject, payload);
     }
 
     /// <summary>
@@ -733,13 +496,5 @@ public abstract class ServiceHandler : MessageTransportBase, IDisposable
         // Implementation depends on your message format
         // This is a placeholder - implement based on your actual message structure
         return null;
-    }
-
-    private void ThrowIfDisposed()
-    {
-        if (_disposed)
-        {
-            throw new ObjectDisposedException(nameof(ServiceHandler));
-        }
     }
 }

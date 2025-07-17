@@ -7,16 +7,25 @@ using EdgeSync.ServiceFramework.Abstractions.Models;
 using EdgeSync.ServiceFramework.Contracts;
 using EdgeSync.ServiceFramework.Exceptions;
 
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace EdgeSync.ServiceFramework.Core;
 
 /// <summary>
 /// Base class for handling events in the ShadowAgent application.
-/// Inherits from <see cref="MessageTransportBase"/>.
+/// Inherits from <see cref="BackgroundService"/>.
 /// </summary>
-public abstract class BaseEventHandler : MessageTransportBase
+public abstract class BaseEventHandler : BackgroundService
 {
+    private readonly EventHandlerTransport _messageTransport;
+    
+    private class EventHandlerTransport : MessageTransportBase
+    {
+        public EventHandlerTransport(IBrokerJetStreamClient broker, IBusJetStreamClient bus) : base(broker, bus) { }
+        public EventHandlerTransport(IJetStreamClientFactory factory, string connectionName) : base(factory, connectionName) { }
+    }
+    
     /// <summary>
     /// Subject name for the JetStream consumer. Could be a single subject or a comma-separated list of subjects.
     /// </summary>
@@ -50,7 +59,7 @@ public abstract class BaseEventHandler : MessageTransportBase
     /// <remarks>
     /// This is used to configure the consumer settings such as durable name, ack policy, etc.
     /// </remarks>
-    protected virtual ConsumerConfigOptions ConsumerCfgOpts { get; set; }
+    protected abstract ConsumerConfigOptions ConsumerCfgOpts { get; set;}
 
     /// <summary>
     /// Legacy constructor for backward compatibility
@@ -58,9 +67,9 @@ public abstract class BaseEventHandler : MessageTransportBase
     public BaseEventHandler(
         ILogger<BaseEventHandler> logger,
         IBrokerJetStreamClient broker,
-        IBusJetStreamClient bus) : base(broker, bus)
+        IBusJetStreamClient bus)
     {
-        DefaultLazy = new Lazy<IJetStreamClient>(() => broker); // Use broker as default for backward compatibility
+        _messageTransport = new EventHandlerTransport(broker, bus);
         Logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         JStreamCfgOpts = JetStreamConfigOptions.Default with
@@ -86,8 +95,9 @@ public abstract class BaseEventHandler : MessageTransportBase
     public BaseEventHandler(
         ILogger<BaseEventHandler> logger,
         IJetStreamClientFactory factory,
-        string connectionName = "Broker") : base(factory, connectionName)
+        string connectionName = "broker")
     {
+        _messageTransport = new EventHandlerTransport(factory, connectionName);
         Logger = logger ?? throw new ArgumentNullException(nameof(logger));
         
         JStreamCfgOpts = JetStreamConfigOptions.Default with
@@ -107,15 +117,6 @@ public abstract class BaseEventHandler : MessageTransportBase
     /// Regular expression pattern for matching subjects.
     /// </summary>
     public static readonly Regex SubjectPattern = new Regex(@"^(?<protocol>[^\.]+)\.(?<groupID>[^\.]+)\.(?<deviceID>[^\.]+)\..*$", RegexOptions.Compiled);
-
-    /// <summary>
-    /// Disposes the resources used by the <see cref="BaseEventHandler"/> class.
-    /// </summary>
-    /// <param name="disposing">Indicates whether the method is called from Dispose method.</param>
-    protected virtual void Dispose(bool disposing)
-    {
-        Default.Dispose();
-    }
 
     /// <summary>
     /// Handles the input event. This method should be overridden in derived classes.
@@ -179,7 +180,7 @@ public abstract class BaseEventHandler : MessageTransportBase
                         retryAttempt, maxRetryAttempts, ConsumerName);
                 }
 
-                var consumer = await Default.CreateStreamConsumerAsync(ConsumerCfgOpts, JStreamCfgOpts);
+                var consumer = await _messageTransport.Default.CreateStreamConsumerAsync(ConsumerCfgOpts, JStreamCfgOpts);
                 
                 // Reset retry counter on successful connection
                 if (retryAttempt > 0)
@@ -191,7 +192,7 @@ public abstract class BaseEventHandler : MessageTransportBase
 
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    await Default.ConsumeAsync(consumer, HandleInputEvent);
+                    await _messageTransport.Default.ConsumeAsync(consumer, HandleInputEvent);
                     await Task.Yield();
                 }
             }
@@ -292,7 +293,7 @@ public abstract class BaseEventHandler : MessageTransportBase
         try
         {
             var resp = ResponseModelDto.Serialize(respMsg);
-            await Default.PublishAsync(topic, Encoding.ASCII.GetBytes(resp));
+            await _messageTransport.Default.PublishAsync(topic, Encoding.ASCII.GetBytes(resp));
             Logger.LogInformation("Response sent to {topic}", topic);
         }
         catch (Exception e)
@@ -315,11 +316,11 @@ public abstract class BaseEventHandler : MessageTransportBase
         {
             if (isAtLeastOnce == true)
             {
-                await Default.PublishAsync(topic, message);
+                await _messageTransport.Default.PublishAsync(topic, message);
             }
             else
             {
-                await Default.NatsPublishAsync(topic, message);
+                await _messageTransport.Default.NatsPublishAsync(topic, message);
             }
             Logger.LogInformation("Message published to {topic}", topic);
         }
