@@ -7,6 +7,13 @@
 格式基於 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)，
 並且本專案遵循 [語義化版本控制](https://semver.org/spec/v2.0.0.html)。
 
+## [1.2.2] - 2025-07-17
+### 功能增強
+- **AddNatsCheck**: 提供更簡潔的 HealthCheck 介面供使用者使用(HealthCheckBuilder 的 Extension)。
+### 修復
+- 修復多連線的問題。
+- 修復 NatsConnectionHealthCheck 問題。
+
 ## [1.2.1] - 2025-07-14
 ### 功能增強
 - **StreamConfigOptions**: 將 StreamConfigOptions 改為可覆寫（virtual）屬性，使子類別能自訂 Stream 設定。
