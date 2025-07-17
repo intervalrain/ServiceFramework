@@ -2,10 +2,10 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <LangVersion>latest</LangVersion>
-    <Version>1.2.1</Version>
+    <Version>1.2.2</Version>
     <Authors>Rain Hu, Kevin Chien</Authors>
     <Company>Advantech</Company>
-    <RootNamespace>EdgeSync.ServiceFramework</RootNamespace>
+    <RootNamespace Condition="!$(MSBuildProjectDirectory.Contains('samples'))">EdgeSync.ServiceFramework</RootNamespace>
     
     <Product>EdgeSync ServiceFramework</Product>
     <Copyright>Copyright © Advantech 2025</Copyright>
