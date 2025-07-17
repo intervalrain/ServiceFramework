@@ -1,6 +1,6 @@
 using BookStore.Nats.Client.Services;
 
-using EdgeSync.ServiceFramework;
+using EdgeSync.ServiceFramework.Abstractions;
 using EdgeSync.ServiceFramework.DependencyInjection;
 using EdgeSync.ServiceFramework.Extensions;
 

@@ -1,4 +1,6 @@
-namespace EdgeSync.ServiceFramework.Core.Extensions;
+using EdgeSync.ServiceFramework.Abstractions;
+
+namespace EdgeSync.ServiceFramework.Extensions;
 
 /// <summary>
 /// Configuration options for Service Framework with multiple NATS connections support

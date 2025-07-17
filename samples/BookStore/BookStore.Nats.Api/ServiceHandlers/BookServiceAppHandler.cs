@@ -1,8 +1,10 @@
 using BookStore.Application.Dtos;
 using BookStore.Application.Services;
 using EdgeSync.ServiceFramework;
+using EdgeSync.ServiceFramework.Abstractions.JetStream;
 using EdgeSync.ServiceFramework.Attributes;
-using EdgeSync.ServiceFramework.JetStream;
+using EdgeSync.ServiceFramework.Core;
+
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 

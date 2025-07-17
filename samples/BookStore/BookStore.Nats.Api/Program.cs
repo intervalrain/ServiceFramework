@@ -4,13 +4,13 @@ using BookStore.Domain.Repositories;
 using BookStore.Infrastructure.Repositories;
 
 using EdgeSync.ServiceFramework.Core.Serialization;
-using EdgeSync.ServiceFramework.Core.Extensions;
 using EdgeSync.ServiceFramework.DependencyInjection;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 using NATS.Client.Serializers.Json;
+using EdgeSync.ServiceFramework.Extensions;
 
 var builder = Host.CreateApplicationBuilder(args);
 

@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Reflection;
 
+using EdgeSync.ServiceFramework.Abstractions;
+
 using EdgeSync.ServiceFramework.Core.HealthChecks;
 
 using Microsoft.Extensions.DependencyInjection;

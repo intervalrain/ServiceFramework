@@ -1,9 +1,10 @@
+using EdgeSync.ServiceFramework.Abstractions;
 using EdgeSync.ServiceFramework.Core.Serialization;
 
 using NATS.Client.Core;
 using NATS.Client.Serializers.Json;
 
-namespace EdgeSync.ServiceFramework.Core.Extensions;
+namespace EdgeSync.ServiceFramework.Extensions;
 
 public static class NatsConnectionBuilderExtensions
 {

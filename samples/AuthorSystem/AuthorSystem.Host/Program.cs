@@ -6,6 +6,7 @@ using AuthorSystem.Domain.Repositories;
 using AuthorSystem.Infrastructure.Repositories;
 
 using EdgeSync.ServiceFramework.AspNetCore.Mvc;
+using EdgeSync.ServiceFramework.Extensions;
 using EdgeSync.ServiceFramework.Core.Serialization;
 using EdgeSync.ServiceFramework.DependencyInjection;
 

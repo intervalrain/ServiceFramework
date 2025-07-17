@@ -6,6 +6,7 @@ using EmailSystem.Application.Contracts.Services;
 
 using EdgeSync.ServiceFramework.AspNetCore.Mvc;
 using EdgeSync.ServiceFramework.Core.Serialization;
+using EdgeSync.ServiceFramework.Extensions;
 using EdgeSync.ServiceFramework.DependencyInjection;
 
 using NATS.Client.Serializers.Json;
