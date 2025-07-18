@@ -136,7 +136,7 @@ public class ApplicationServiceConvention : IApplicationModelConvention
         actionModel.Properties["ConventionMode"] = decisionResult.Mode;
 
         // Configure action using the appropriate handler
-        handler.ConfigureAction(actionModel, method, subjectAttribute, setting, controllerRoute);
+        handler.ConfigureAction(actionModel, method, subjectAttribute!, setting, controllerRoute);
 
         actionModel.ApiExplorer.IsVisible = true;
 

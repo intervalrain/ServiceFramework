@@ -20,7 +20,7 @@ namespace EdgeSync.ServiceFramework.AspNetCore.Mvc;
 
 public static class ServiceCollectionExtensions
 {
-    private static JsonSerializerOptions _defaultOptions = new JsonSerializerOptions
+    private static readonly JsonSerializerOptions _defaultOptions = new JsonSerializerOptions
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         DictionaryKeyPolicy = JsonNamingPolicy.CamelCase,
@@ -33,7 +33,7 @@ public static class ServiceCollectionExtensions
         services.AddAutoConventionOptions(out var options);
         services.AddApplicationServiceConvention<TAutoConventionRouteBuilder>(options);
         services.AddServiceFrameworkSwagger(options.UseExceptionHandler, setupAction);
-        services.AddNatsServiceAutoDiscovery(options.Settings);
+        services.AddNatsServiceAutoDiscovery(options.Settings!);
         services.AddSubscriptionHandlers();
         services.AddHostedService<ServiceFrameworkBackgroundService>();
 

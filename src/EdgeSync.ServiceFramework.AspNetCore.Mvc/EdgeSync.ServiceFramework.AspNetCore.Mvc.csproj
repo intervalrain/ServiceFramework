@@ -15,7 +15,6 @@
 
   <ItemGroup>
     <PackageReference Include="ErrorOr" />
-    <PackageReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc" />
     <PackageReference Include="Microsoft.Extensions.Configuration" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
@@ -25,6 +24,10 @@
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
     <PackageReference Include="NATS.NET" />
     <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <ItemGroup>

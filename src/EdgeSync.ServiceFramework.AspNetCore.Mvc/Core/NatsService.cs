@@ -7,6 +7,7 @@ using EdgeSync.ServiceFramework.Attributes;
 using EdgeSync.ServiceFramework.Abstractions.Attributes;
 
 using Microsoft.Extensions.Logging;
+using EdgeSync.ServiceFramework.Extensions;
 
 namespace EdgeSync.ServiceFramework.AspNetCore.Mvc.Core;
 

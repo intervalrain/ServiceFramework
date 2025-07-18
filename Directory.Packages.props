@@ -24,6 +24,7 @@
     <PackageVersion Include="NATS.NET" Version="2.6.3" />
     <PackageVersion Include="Microsoft.AspNetCore.App" Version="2.2.8" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc" Version="2.3.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Localization" Version="8.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration" Version="9.0.6" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.7" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="9.0.7" />

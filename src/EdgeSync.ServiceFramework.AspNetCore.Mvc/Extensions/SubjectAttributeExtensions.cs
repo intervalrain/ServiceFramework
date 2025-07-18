@@ -1,11 +1,14 @@
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Extensions;
 using EdgeSync.ServiceFramework.Attributes;
 
+namespace EdgeSync.ServiceFramework.Extensions;
+
 public static class SubjectAttributeExtensions
 {
     /// <summary>
     /// Gets the API endpoint, using automatic naming if not explicitly set
     /// </summary>
+    /// <param name="attribute">The attribute defined the subject and endpoint which used to create Nats Service.</param>
     /// <param name="methodName">The method name to generate endpoint from</param>
     /// <returns>The API endpoint</returns>
     public static string GetEndpoint(this SubjectAttribute attribute, string methodName)

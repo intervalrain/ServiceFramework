@@ -14,6 +14,7 @@ using Microsoft.Extensions.Options;
 
 using NATS.Client.Core;
 using NATS.Client.Services;
+using EdgeSync.ServiceFramework.Extensions;
 
 namespace EdgeSync.ServiceFramework.AspNetCore.Mvc.Core;
 
