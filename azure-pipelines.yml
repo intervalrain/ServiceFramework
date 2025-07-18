@@ -24,7 +24,9 @@ jobs:
       command: 'restore'
       projects: '**/*.csproj'
       feedsToUse: 'select'
-      vstsFeed: 'd592cbbf-1bf4-4d80-8f88-e70b1ba73d84/bbd4f7fc-436c-4173-aa8a-a1af2e1a3be7'
+      nugetConfigPath: 'NuGet.Config'
+      # vstsFeed: 'd592cbbf-1bf4-4d80-8f88-e70b1ba73d84/bbd4f7fc-436c-4173-aa8a-a1af2e1a3be7'
+
   - task: DotNetCoreCLI@2
     displayName: dotnet build
     inputs:
@@ -49,7 +51,9 @@ jobs:
       command: 'restore'
       projects: '**/src/**/*.csproj'
       feedsToUse: 'select'
-      vstsFeed: 'd592cbbf-1bf4-4d80-8f88-e70b1ba73d84/bbd4f7fc-436c-4173-aa8a-a1af2e1a3be7'
+      nugetConfigPath: 'NuGet.Config'
+      # vstsFeed: 'd592cbbf-1bf4-4d80-8f88-e70b1ba73d84/bbd4f7fc-436c-4173-aa8a-a1af2e1a3be7'
+      
   - task: DotNetCoreCLI@2
     displayName: dotnet build
     inputs:
