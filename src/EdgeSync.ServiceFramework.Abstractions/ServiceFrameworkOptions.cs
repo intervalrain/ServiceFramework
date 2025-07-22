@@ -23,6 +23,28 @@ public class ServiceFrameworkOptions
     /// </summary>
     public Dictionary<string, NatsConnectionSettings> Connections { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
+    public NatsConnectionBuilder AddConnection(string name, string url)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("Connection name cannot be null or empty", nameof(name));
+        
+        if (string.IsNullOrWhiteSpace(url))
+            throw new ArgumentException("Connection URL cannot be null or empty", nameof(url));
+
+        // Duplicate name check
+        if (Connections.ContainsKey(name))
+            throw new ArgumentException($"Connection with name '{name}' already exists. Please use a unique connection name.");
+
+        var settings = new NatsConnectionSettings
+        {
+            Name = name,
+            Url = url,
+        };
+
+        Connections[name] = settings;
+        return new NatsConnectionBuilder(settings);
+    }
+
     /// <summary>
     /// Validates the configuration for duplicate names and other issues
     /// </summary>

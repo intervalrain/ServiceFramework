@@ -55,6 +55,9 @@ public class NatsConnClient
 
         for (var i = 0; i < reTryCount; i++)
         {
+            // Check if cancellation was requested before attempting connection
+            cancellationToken.ThrowIfCancellationRequested();
+            
             try
             {
                 if (i > 0)
@@ -72,6 +75,11 @@ public class NatsConnClient
                 }
 
                 return nats;
+            }
+            catch (OperationCanceledException)
+            {
+                logger.LogWarning($"NATS connection to '{opts.Url}' was cancelled by user");
+                throw;
             }
             catch (Exception ex)
             {

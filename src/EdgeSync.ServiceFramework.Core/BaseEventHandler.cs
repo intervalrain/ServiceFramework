@@ -19,6 +19,8 @@ namespace EdgeSync.ServiceFramework.Core;
 public abstract class BaseEventHandler : BackgroundService
 {
     private readonly EventHandlerTransport _messageTransport;
+    protected IJetStreamClient Bus => _messageTransport.Bus;
+    protected IJetStreamClient Broker => _messageTransport.Broker;
     
     private class EventHandlerTransport : MessageTransportBase
     {

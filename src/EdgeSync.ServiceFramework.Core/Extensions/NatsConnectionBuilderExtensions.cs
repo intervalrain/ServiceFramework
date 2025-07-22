@@ -32,8 +32,7 @@ public static class NatsConnectionBuilderExtensions
         {
             "json" => NatsJsonSerializerRegistry.Default,
             "protobuf" => NatsProtobufSerializerRegistry.Default,
-            "default" => NatsDefaultSerializerRegistry.Default,
-            _ => throw new ArgumentException($"Unknown serializer '{serializerName}'. Supported values: json, protobuf, default", nameof(serializerName))
+            _ => NatsDefaultSerializerRegistry.Default,
         };
     }
 }

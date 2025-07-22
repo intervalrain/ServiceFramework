@@ -1,7 +1,4 @@
-using EdgeSync.ServiceFramework.Core.Serialization;
-
 using NATS.Client.Core;
-using NATS.Client.Serializers.Json;
 
 namespace EdgeSync.ServiceFramework.Abstractions;
 
@@ -29,17 +26,6 @@ public class NatsConnectionBuilder
     }
 
     /// <summary>
-    /// Sets the serializer registry for this connection using a string identifier
-    /// </summary>
-    /// <param name="serializerName">The serializer name: "json", "protobuf", or "default"</param>
-    /// <returns>The builder instance for method chaining</returns>
-    public NatsConnectionBuilder WithSerializerRegistry(string serializerName)
-    {
-        _settings.NatsSerializerRegistry = GetSerializerRegistry(serializerName);
-        return this;
-    }
-
-    /// <summary>
     /// Sets the credential file path for authentication
     /// </summary>
     /// <param name="credFile">Path to the credential file</param>
@@ -48,15 +34,5 @@ public class NatsConnectionBuilder
     {
         _settings.CredFile = credFile;
         return this;
-    }
-
-    public INatsSerializerRegistry GetSerializerRegistry(string serializerName)
-    {
-        return serializerName.ToLowerInvariant() switch
-        {
-            "json" => NatsJsonSerializerRegistry.Default,
-            "protobuf" => NatsProtobufSerializerRegistry.Default,
-            _ => NatsDefaultSerializerRegistry.Default
-        };
     }
 }

@@ -4,8 +4,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
+using EdgeSync.ServiceFramework.Abstractions.Attributes;
 using EdgeSync.ServiceFramework.Abstractions.JetStream;
-
 using EdgeSync.ServiceFramework.Attributes;
 using EdgeSync.ServiceFramework.Contracts;
 using EdgeSync.ServiceFramework.Enums;
@@ -14,6 +14,7 @@ using EdgeSync.ServiceFramework.Exceptions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
+using NATS.Client.Core;
 using NATS.Client.Services;
 using NATS.Net;
 
@@ -27,7 +28,6 @@ public abstract class ServiceHandler : MessageTransportBase, IHostedService
     private static readonly ConcurrentDictionary<Type, List<MethodInfo>> _endpointMethodsCache = new();
     private static readonly Regex SubjectParseRegex = new(@"^(?<protocol>[^\.]+)\.(?<groupID>[^\.]+)\.(?<deviceID>[^\.]+)\..*$", RegexOptions.Compiled);
 
-    private readonly IJetStreamClient _client;
     private INatsSvcContext? _svcContext;
     private INatsSvcServer? _svcServer;
 
@@ -54,6 +54,19 @@ public abstract class ServiceHandler : MessageTransportBase, IHostedService
     public ILogger<ServiceHandler> Logger { get; }
 
     /// <summary>
+    /// Legacy constructor for backward compatibility, only support bus connection
+    /// </summary>
+    [Obsolete("Use the new constructor with IJetStreamClientFactory instead")]
+    public ServiceHandler(
+        ILogger<ServiceHandler> logger,
+        INatsConnection connection,
+        IBrokerJetStreamClient broker,
+        IBusJetStreamClient bus) : base(broker, bus)
+    {
+        Logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    /// <summary>
     /// New constructor with named connection support
     /// </summary>
     public ServiceHandler(
@@ -62,17 +75,21 @@ public abstract class ServiceHandler : MessageTransportBase, IHostedService
         string connectionName = "bus") : base(factory, connectionName)
     {
         Logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _client = factory.CreateClient(connectionName);
+        var channel = GetType().GetCustomAttribute<ChannelAttribute>()?.Name;
+        if (!string.IsNullOrEmpty(channel))
+        {
+            DefaultLazy = new Lazy<IJetStreamClient>(() => factory.CreateClient(channel));
+        }
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        await _client.TryConnectAsync();
-        if (_client.NatsConnection == null) throw new NullReferenceException();
+        await Default.TryConnectAsync();
+        if (Default.NatsConnection == null) throw new NullReferenceException();
 
         try
         {
-            _svcContext = _client.NatsConnection.CreateServicesContext();
+            _svcContext = Default.NatsConnection.CreateServicesContext();
             _svcServer = await _svcContext.AddServiceAsync(new NatsSvcConfig(ServiceName, ServiceVersion)
             {
                 QueueGroup = QueueGroup,
@@ -355,7 +372,7 @@ public abstract class ServiceHandler : MessageTransportBase, IHostedService
         ArgumentNullException.ThrowIfNull(subject);
         ArgumentNullException.ThrowIfNull(payload);
 
-        await _client.PublishAsync(subject, payload);
+        await Default.PublishAsync(subject, payload);
     }
 
     /// <summary>
