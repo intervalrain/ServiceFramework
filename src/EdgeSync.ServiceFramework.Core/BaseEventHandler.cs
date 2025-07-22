@@ -59,7 +59,7 @@ public abstract class BaseEventHandler : BackgroundService
     /// <remarks>
     /// This is used to configure the consumer settings such as durable name, ack policy, etc.
     /// </remarks>
-    protected abstract ConsumerConfigOptions ConsumerCfgOpts { get; set;}
+    protected virtual ConsumerConfigOptions ConsumerCfgOpts { get; set;}
 
     /// <summary>
     /// Legacy constructor for backward compatibility

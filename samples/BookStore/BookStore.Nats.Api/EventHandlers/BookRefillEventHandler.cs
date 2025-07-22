@@ -1,19 +1,10 @@
 using System.Text;
 using System.Text.Json;
-
-
 using BookStore.Application.Events;
 using BookStore.Application.Services;
-
-
 using EdgeSync.ServiceFramework.Abstractions.JetStream;
-using EdgeSync.ServiceFramework.Abstractions.Models;
 using EdgeSync.ServiceFramework.Core;
-
-
 using Microsoft.Extensions.Logging;
-
-using NATS.Client.JetStream.Models;
 
 namespace BookStore.Nats.Api.EventHandlers;
 
@@ -38,23 +29,6 @@ public class BookRefillEventHandler : BaseEventHandler
     protected override string SubjectName => "bookstore.events.book.refill";
     protected override string StreamName => "bookstore-stream";
     protected override string ConsumerName => "book-refill-consumer";
-
-    protected override JetStreamConfigOptions JStreamCfgOpts { get; set; } = new JetStreamConfigOptions
-    {
-        MaxMsgs = -1,
-        MaxBytes = -1,
-        MaxAge = TimeSpan.FromDays(1),
-        Description = "Bookstore events stream for book refill events",
-        Retention = StreamConfigRetention.Limits,
-        Storage = StreamConfigStorage.File,
-    };
-
-    protected override ConsumerConfigOptions ConsumerCfgOpts { get; set; } = new ConsumerConfigOptions()
-    {
-        AckPolicy = ConsumerConfigAckPolicy.Explicit,
-        ReplayPolicy = ConsumerConfigReplayPolicy.Instant,
-        MaxAckPending = -1,
-    };
 
     protected override async Task HandleInputEventCore(byte[] message, string subject)
     {

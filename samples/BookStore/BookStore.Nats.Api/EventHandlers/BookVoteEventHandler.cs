@@ -36,23 +36,6 @@ public class BookVoteEventHandler : BaseEventHandler
     protected override string StreamName => "bookstore-stream";
     protected override string ConsumerName => "book-vote-consumer";
 
-    protected override JetStreamConfigOptions JStreamCfgOpts { get; set; } = new JetStreamConfigOptions
-    {
-        MaxMsgs = -1,
-        MaxBytes = -1,
-        MaxAge = TimeSpan.FromDays(1),
-        Description = "Bookstore events stream for book vote events",
-        Retention = StreamConfigRetention.Limits,
-        Storage = StreamConfigStorage.File,
-    };
-
-    protected override ConsumerConfigOptions ConsumerCfgOpts { get; set; } = new ConsumerConfigOptions()
-    {
-        AckPolicy = ConsumerConfigAckPolicy.Explicit,
-        ReplayPolicy = ConsumerConfigReplayPolicy.Instant,
-        MaxAckPending = -1,
-    };
-
     protected override async Task HandleInputEventCore(byte[] message, string subject)
     {
         try
