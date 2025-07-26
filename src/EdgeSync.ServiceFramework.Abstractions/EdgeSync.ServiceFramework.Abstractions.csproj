@@ -17,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="ErrorOr" />
     <PackageReference Include="NATS.NET" />
   </ItemGroup>
 

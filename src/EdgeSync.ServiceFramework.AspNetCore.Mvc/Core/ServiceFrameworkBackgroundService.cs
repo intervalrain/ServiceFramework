@@ -6,6 +6,7 @@ using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Decisions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Subscriptions;
 using EdgeSync.ServiceFramework.Attributes;
+using EdgeSync.ServiceFramework.Extensions;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -14,7 +15,6 @@ using Microsoft.Extensions.Options;
 
 using NATS.Client.Core;
 using NATS.Client.Services;
-using EdgeSync.ServiceFramework.Extensions;
 
 namespace EdgeSync.ServiceFramework.AspNetCore.Mvc.Core;
 
@@ -27,6 +27,8 @@ public class ServiceFrameworkBackgroundService : BackgroundService
     private readonly AutoConventionOptions _options;
     private readonly ServiceFrameworkOptions _serviceFrameworkOptions;
     private readonly List<IAsyncDisposable> _subscriptions = [];
+    private readonly List<(Type ServiceType, List<NatsMethodInfo> Methods)> _pubsubServices = [];
+    private readonly List<(Type ServiceType, List<NatsMethodInfo> Methods)> _reqrspServices = [];
 
     public ServiceFrameworkBackgroundService(
         IServiceProvider serviceProvider,
@@ -44,106 +46,133 @@ public class ServiceFrameworkBackgroundService : BackgroundService
         _serviceFrameworkOptions = serviceFrameworkOptions.Value;
     }
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    public override async Task StartAsync(CancellationToken cancellationToken)
     {
-        // Discover all NatsService implementations
+        // Step 1: Discover all NatsService implementations and categorize them
         var serviceTypes = AppDomain.CurrentDomain.GetAssemblies()
             .SelectMany(assembly => assembly.GetTypes())
             .Where(type => type.IsClass && !type.IsAbstract &&
                            type.IsSubclassOf(typeof(NatsService)))
             .ToList();
 
-        var subscriptionTasks = new List<Task>();
-
         foreach (var serviceType in serviceTypes)
         {
             using var scope = _serviceProvider.CreateScope();
-            var service = scope.ServiceProvider.GetService(serviceType) as NatsService;
-
-            if (service == null && serviceType.IsSubclassOf(typeof(NatsService)))
-            {
-                var constructors = serviceType.GetConstructors();
-                foreach (var constructor in constructors)
-                {
-                    var parameters = constructor.GetParameters();
-                    var args = new object[parameters.Length];
-                    var canCreate = true;
-
-                    for (int i = 0; i < parameters.Length; i++)
-                    {
-                        try
-                        {
-                            args[i] = scope.ServiceProvider.GetRequiredService(parameters[i].ParameterType);
-                        }
-                        catch
-                        {
-                            canCreate = false;
-                            break;
-                        }
-                    }
-
-                    if (canCreate)
-                    {
-                        service = (NatsService)Activator.CreateInstance(serviceType, args)!;
-                        break;
-                    }
-                }
-            }
+            var service = GetOrCreateServiceInstance(scope, serviceType);
 
             if (service != null)
             {
                 var natsMethods = GetNatsMethodsWithDecision(service);
+                var pubsubMethods = natsMethods.Where(m => !m.IsRequestResponse).ToList();
+                var reqrspMethods = natsMethods.Where(m => m.IsRequestResponse).ToList();
 
-                var pubsubMethods = natsMethods.Where(m => !m.IsRequestResponse);
-                var reqrspMethods = natsMethods.Where(m => m.IsRequestResponse);
+                if (pubsubMethods.Any())
+                {
+                    _pubsubServices.Add((serviceType, pubsubMethods));
+                }
 
                 if (reqrspMethods.Any())
                 {
-                    // Group by both ServiceName and ChannelName to handle different connections
-                    var groupedReqRspMethods = reqrspMethods.GroupBy(m => new { 
-                        ServiceName = m.ServiceName, 
-                        ChannelName = GetChannelName(serviceType, m) 
-                    });
-                    
-                    foreach (var group in groupedReqRspMethods)
-                    {
-                        var serviceName = group.Key.ServiceName;
-                        var channelName = group.Key.ChannelName;
-                        var methods = group.ToList();
-                        
-                        var connection = await GetConnectionAsync(scope, channelName, serviceType.Name);
-                        if (connection == null) continue;
-                        
-                        var svcServer = await CreateSvcServer(serviceName, methods, connection, stoppingToken);
-                        
-                        // Setup request-response service for this service group
-                        var task = Task.Run(async () =>
-                        {
-                            await SetupRequestResponseServiceGroup(connection, svcServer, serviceType, serviceName, methods, stoppingToken);
-                        }, stoppingToken);
-                        
-                        subscriptionTasks.Add(task);
-                    }
-                }
-
-                foreach (var method in pubsubMethods)
-                {
-                    var channelName = GetChannelName(serviceType, method);
-                    var connection = await GetConnectionAsync(scope, channelName, serviceType.Name);
-                    if (connection == null) continue;
-                    
-                    var task = Task.Run(async () =>
-                    {
-                        await SubscribeToMethod(connection, serviceType, method, stoppingToken);
-                    }, stoppingToken);
-
-                    subscriptionTasks.Add(task);
+                    _reqrspServices.Add((serviceType, reqrspMethods));
                 }
             }
         }
 
-        _logger.LogInformation("All NATS subscriptions started via reflection");
+        // Step 2: Register all request-response services immediately
+        foreach (var (serviceType, methods) in _reqrspServices)
+        {
+            // Group by both ServiceName and ChannelName to handle different connections
+            var groupedReqRspMethods = methods.GroupBy(m => new
+            {
+                ServiceName = m.ServiceName,
+                ChannelName = GetChannelName(serviceType, m)
+            });
+
+            foreach (var group in groupedReqRspMethods)
+            {
+                using var scope = _serviceProvider.CreateScope();
+                var serviceName = group.Key.ServiceName;
+                var channelName = group.Key.ChannelName;
+                var groupMethods = group.ToList();
+
+                var connection = await GetConnectionAsync(scope, channelName, serviceType.Name);
+                if (connection == null) continue;
+
+                var svcServer = await CreateSvcServer(serviceName, groupMethods, connection, cancellationToken);
+
+                // Setup request-response service endpoints
+                await SetupRequestResponseServiceGroup(connection, svcServer, serviceType, serviceName, groupMethods, cancellationToken);
+                
+                _logger.LogInformation("Registered request-response service '{ServiceName}' with {MethodCount} methods during startup",
+                    serviceName, groupMethods.Count);
+            }
+        }
+
+        await base.StartAsync(cancellationToken);
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        // Step 3: Set up pub-sub subscriptions
+        var subscriptionTasks = new List<Task>();
+
+        foreach (var (serviceType, methods) in _pubsubServices)
+        {
+            foreach (var method in methods)
+            {
+                using var scope = _serviceProvider.CreateScope();
+                var channelName = GetChannelName(serviceType, method);
+                var connection = await GetConnectionAsync(scope, channelName, serviceType.Name);
+                if (connection == null) continue;
+
+                var task = Task.Run(async () =>
+                {
+                    await SubscribeToMethod(connection, serviceType, method, stoppingToken);
+                }, stoppingToken);
+
+                subscriptionTasks.Add(task);
+            }
+        }
+
+        _logger.LogInformation("All NATS pub-sub subscriptions started");
         await Task.WhenAll(subscriptionTasks);
+    }
+
+    private NatsService? GetOrCreateServiceInstance(IServiceScope scope, Type serviceType)
+    {
+        var service = scope.ServiceProvider.GetService(serviceType) as NatsService;
+
+        if (service == null && serviceType.IsSubclassOf(typeof(NatsService)))
+        {
+            var constructors = serviceType.GetConstructors();
+            foreach (var constructor in constructors)
+            {
+                var parameters = constructor.GetParameters();
+                var args = new object[parameters.Length];
+                var canCreate = true;
+
+                for (int i = 0; i < parameters.Length; i++)
+                {
+                    try
+                    {
+                        args[i] = scope.ServiceProvider.GetRequiredService(parameters[i].ParameterType);
+                    }
+                    catch
+                    {
+                        canCreate = false;
+                        break;
+                    }
+                }
+
+                if (canCreate)
+                {
+                    service = (NatsService)Activator.CreateInstance(serviceType, args)!;
+                    break;
+                }
+            }
+        }
+
+        return service;
     }
 
     private async Task<INatsSvcServer> CreateSvcServer(string serviceName, List<NatsMethodInfo> methods, INatsConnection connection, CancellationToken cancellationToken)
