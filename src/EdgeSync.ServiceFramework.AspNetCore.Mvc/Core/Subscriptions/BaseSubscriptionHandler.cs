@@ -1,9 +1,14 @@
+using System.Reflection;
 using System.Text.Json;
 
+using EdgeSync.ServiceFramework.Abstractions;
+using EdgeSync.ServiceFramework.Abstractions.Attributes;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
+using EdgeSync.ServiceFramework.Data;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 using NATS.Client.Core;
 using NATS.Client.JetStream;
@@ -17,11 +22,17 @@ public abstract class BaseSubscriptionHandler : ISubscriptionHandler
 {
     protected readonly IServiceProvider ServiceProvider;
     protected readonly ILogger Logger;
+    protected readonly AutoConventionOptions Options;
+    protected readonly ServiceFrameworkOptions ServiceFrameworkOptions;
 
     protected BaseSubscriptionHandler(IServiceProvider serviceProvider, ILogger logger)
     {
         ServiceProvider = serviceProvider;
         Logger = logger;
+        var optionsAccessor = serviceProvider.GetRequiredService<IOptions<AutoConventionOptions>>();
+        Options = optionsAccessor.Value;
+        var serviceFrameworkOptionsAccessor = serviceProvider.GetRequiredService<IOptions<ServiceFrameworkOptions>>();
+        ServiceFrameworkOptions = serviceFrameworkOptionsAccessor.Value;
     }
 
     public abstract ConventionMode SupportedMode { get; }
@@ -42,7 +53,7 @@ public abstract class BaseSubscriptionHandler : ISubscriptionHandler
             }
 
             var parameters = methodInfo.Method.GetParameters();
-            var args = DeserializeMethodParameters(parameters, msg.Data, connection);
+            var args = await DeserializeMethodParametersAsync(parameters, msg.Data, serviceType, methodInfo);
 
             // Invoke the method
             var result = methodInfo.Method.Invoke(service, args);
@@ -98,7 +109,7 @@ public abstract class BaseSubscriptionHandler : ISubscriptionHandler
             }
 
             var parameters = methodInfo.Method.GetParameters();
-            var args = DeserializeMethodParameters(parameters, msg.Data, connection);
+            var args = await DeserializeMethodParametersAsync(parameters, msg.Data, serviceType, methodInfo);
 
             // Invoke the method
             var result = methodInfo.Method.Invoke(service, args);
@@ -129,7 +140,7 @@ public abstract class BaseSubscriptionHandler : ISubscriptionHandler
             }
 
             var parameters = methodInfo.Method.GetParameters();
-            var args = DeserializeMethodParameters(parameters, msg.Data, connection);
+            var args = await DeserializeMethodParametersAsync(parameters, msg.Data, serviceType, methodInfo);
 
             // Invoke the method
             var result = methodInfo.Method.Invoke(service, args);
@@ -146,9 +157,10 @@ public abstract class BaseSubscriptionHandler : ISubscriptionHandler
         }
     }
 
-    private object[] DeserializeMethodParameters(System.Reflection.ParameterInfo[] parameters, string? messageData, INatsConnection connection)
+    private async Task<object[]> DeserializeMethodParametersAsync(ParameterInfo[] parameters, string? messageData, Type serviceType, NatsMethodInfo methodInfo)
     {
         var args = new object[parameters.Length];
+        var serializerRegistry = GetSerializerForChannel(serviceType, methodInfo);
 
         for (int i = 0; i < parameters.Length; i++)
         {
@@ -172,19 +184,49 @@ public abstract class BaseSubscriptionHandler : ISubscriptionHandler
             }
             else if (paramType.IsClass && paramType != typeof(string))
             {
-                // Deserialize complex objects
+                // Deserialize complex objects using the appropriate serializer
                 try
                 {
-                    args[i] = JsonSerializer.Deserialize(messageData ?? "{}", paramType)!;
+                    // Get the deserializer for this type
+                    var deserializerMethod = serializerRegistry.GetType().GetMethod("GetDeserializer")!.MakeGenericMethod(paramType);
+                    var deserializer = deserializerMethod.Invoke(serializerRegistry, null);
+                    
+                    // Deserialize the data
+                    var bytes = System.Text.Encoding.UTF8.GetBytes(messageData ?? "{}");
+                    var buffer = new System.Buffers.ReadOnlySequence<byte>(bytes);
+                    
+                    var deserializeMethod = deserializer!.GetType().GetMethod("Deserialize", new[] { typeof(System.Buffers.ReadOnlySequence<byte>) });
+                    var deserializedData = deserializeMethod!.Invoke(deserializer, new object[] { buffer });
+                    
+                    // Check if EnableAuditWrapper is on and the deserialized data is RequestDto<T>
+                    if (Options.EnableAuditWrapper && deserializedData != null)
+                    {
+                        var dataType = deserializedData.GetType();
+                        if (dataType.IsGenericType && dataType.GetGenericTypeDefinition() == typeof(RequestDto<>))
+                        {
+                            // Extract the actual data from RequestDto
+                            var dataProp = dataType.GetProperty("Data");
+                            args[i] = dataProp?.GetValue(deserializedData) ?? deserializedData;
+                        }
+                        else
+                        {
+                            args[i] = deserializedData;
+                        }
+                    }
+                    else
+                    {
+                        args[i] = deserializedData;
+                    }
                 }
-                catch
+                catch (Exception ex)
                 {
+                    Logger.LogError(ex, "Failed to deserialize parameter of type {ParamType}", paramType.Name);
                     args[i] = Activator.CreateInstance(paramType)!;
                 }
             }
         }
 
-        return args;
+        return await Task.FromResult(args);
     }
 
     private object? GetServiceInstance(IServiceProvider serviceProvider, Type serviceType)
@@ -222,6 +264,49 @@ public abstract class BaseSubscriptionHandler : ISubscriptionHandler
         }
         
         return concreteService;
+    }
+
+    private INatsSerializerRegistry GetSerializerForChannel(Type serviceType, NatsMethodInfo methodInfo)
+    {
+        var channelName = GetChannelName(serviceType, methodInfo);
+        
+        // Find the connection settings for this channel
+        if (!string.IsNullOrEmpty(channelName) && ServiceFrameworkOptions.Connections.TryGetValue(channelName, out var connectionSettings))
+        {
+            return connectionSettings.NatsSerializerRegistry;
+        }
+        
+        // Try default connection if specified
+        if (!string.IsNullOrEmpty(ServiceFrameworkOptions.DefaultConnection) &&
+            ServiceFrameworkOptions.Connections.TryGetValue(ServiceFrameworkOptions.DefaultConnection, out var defaultSettings))
+        {
+            return defaultSettings.NatsSerializerRegistry;
+        }
+        
+        // Fallback to default serializer registry
+        return ServiceFrameworkOptions.DefaultSerializerRegistry;
+    }
+    
+    private string GetChannelName(Type serviceType, NatsMethodInfo methodInfo)
+    {
+        // Priority: method > class > default connection
+
+        // 1. Check method-level Channel attribute
+        var methodChannel = methodInfo.Method.GetCustomAttribute<ChannelAttribute>();
+        if (methodChannel != null)
+        {
+            return methodChannel.Name;
+        }
+
+        // 2. Check class-level Channel attribute
+        var classChannel = serviceType.GetCustomAttribute<ChannelAttribute>();
+        if (classChannel != null)
+        {
+            return classChannel.Name;
+        }
+
+        // 3. Use default connection
+        return ServiceFrameworkOptions.DefaultConnection ?? string.Empty;
     }
 
     private object CreateNatsResponse(object errorOrResult)

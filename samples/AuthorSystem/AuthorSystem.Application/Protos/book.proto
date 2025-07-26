@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package AuthorSystem.Application.Protos;
+
+option csharp_namespace = "AuthorSystem.Application.Protos";
+
+// Book message definition
+message BookDto {
+    string id = 1;
+    string title = 2;
+    string author_id = 3;
+    string isbn = 4;
+    string description = 5;
+    int32 publication_year = 6;
+    double price = 7;
+    bool is_available = 8;
+}
+
+// Request message for getting a book
+message GetBookDto {
+    string id = 1;
+}
+
+// Request message for creating a book
+message CreateBookDto {
+    string title = 1;
+    string author_id = 2;
+    string isbn = 3;
+    string description = 4;
+    int32 publication_year = 5;
+    double price = 6;
+}
+
+// Request message for updating a book
+message UpdateBookDto {
+    string id = 1;
+    string title = 2;
+    string author_id = 3;
+    string isbn = 4;
+    string description = 5;
+    int32 publication_year = 6;
+    double price = 7;
+    bool is_available = 8;
+}

@@ -33,6 +33,7 @@
     <PackageVersion Include="Microsoft.Extensions.Options.DataAnnotations" Version="9.0.6" />
     <PackageVersion Include="Swashbuckle.AspNetCore.SwaggerGen" Version="9.0.1" />
     <PackageVersion Include="Google.Protobuf" Version="3.31.1" />
+    <PackageVersion Include="Grpc.Tools" Version="2.71.0" />
     <PackageVersion Include="Microsoft.Extensions.Diagnostics" Version="9.0.7" />
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="9.0.7" />
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="9.0.4" />

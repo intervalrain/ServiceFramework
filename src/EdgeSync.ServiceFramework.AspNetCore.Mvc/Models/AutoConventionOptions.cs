@@ -15,4 +15,6 @@ public class AutoConventionOptions
     public bool UseExceptionHandler { get; set; } = true;
 
     public bool DefaultJetStreamEnable { get; set; } = true;
+
+    public bool EnableAuditWrapper { get; set; } = true;
 }

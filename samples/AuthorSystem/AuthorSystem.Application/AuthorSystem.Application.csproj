@@ -11,11 +11,17 @@
     <PackageReference Include="ErrorOr" />
     <PackageReference Include="AutoMapper" />
     <PackageReference Include="JetBrains.Annotations" />
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="Grpc.Tools" PrivateAssets="All" />
   </ItemGroup>
-
+  
   <ItemGroup>
     <ProjectReference Include="..\AuthorSystem.Domain\AuthorSystem.Domain.csproj" />
     <ProjectReference Include="..\..\..\src\EdgeSync.ServiceFramework.AspNetCore.Mvc\EdgeSync.ServiceFramework.AspNetCore.Mvc.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Include="Protos\book.proto" />
   </ItemGroup>
 
 </Project>

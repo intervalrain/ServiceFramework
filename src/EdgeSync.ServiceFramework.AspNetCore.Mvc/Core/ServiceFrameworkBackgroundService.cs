@@ -6,7 +6,9 @@ using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Decisions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Subscriptions;
 using EdgeSync.ServiceFramework.Attributes;
+using EdgeSync.ServiceFramework.Data;
 using EdgeSync.ServiceFramework.Extensions;
+using ErrorOr;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -245,19 +247,20 @@ public class ServiceFrameworkBackgroundService : BackgroundService
         }
     }
 
-    private async Task AddServiceEndpoint<T>(INatsSvcServer svcServer, Type serviceType, NatsMethodInfo methodInfo, string endpointName, INatsConnection connection, CancellationToken cancellationToken)
+    private async Task AddServiceEndpoint<T>(INatsSvcServer svcServer, Type serviceType, NatsMethodInfo methodInfo, string endpointName, INatsConnection connection, CancellationToken cancellationToken) where T : class
     {
         _logger.LogInformation("Adding NATS service endpoint: {EndpointName} for method: {Method} on service: {ServiceType}",
             endpointName, methodInfo.Method.Name, serviceType.Name);
 
-        var serializerRegistry = GetSerializerForConnection(connection);
+        var channelName = GetChannelName(serviceType, methodInfo);
+        var serializerRegistry = GetSerializerForConnection(channelName);
         var subject = GetSubject(methodInfo);
 
         await svcServer.AddEndpointAsync(
             name: endpointName,
             serializer: serializerRegistry.GetDeserializer<T>(),
             subject: subject,
-            handler: async m =>
+            handler: async (NatsSvcMsg<T> m) =>
             {
                 // Handle exceptions which may occur during message processing
                 if (m.Exception != null)
@@ -273,8 +276,35 @@ public class ServiceFrameworkBackgroundService : BackgroundService
 
                     if (serviceInstance != null)
                     {
+                        // Extract request data and audit info when EnableAuditWrapper is true
+                        object? requestData = m.Data;
+                        string? userId = null;
+                        string? tenantId = null;
+                        string? correlationId = null;
+                        Guid reqSeqId = Guid.NewGuid();
+
+                        if (_options.EnableAuditWrapper && m.Data != null)
+                        {
+                            var dataType = m.Data.GetType();
+                            if (dataType.IsGenericType && dataType.GetGenericTypeDefinition() == typeof(RequestDto<>))
+                            {
+                                // Extract audit info from RequestDto
+                                var reqSeqIdProp = dataType.GetProperty("ReqSeqId");
+                                var userIdProp = dataType.GetProperty("UserId");
+                                var tenantIdProp = dataType.GetProperty("TenantId");
+                                var correlationIdProp = dataType.GetProperty("CorrelationId");
+                                var dataProp = dataType.GetProperty("Data");
+
+                                reqSeqId = (Guid)(reqSeqIdProp?.GetValue(m.Data) ?? reqSeqId);
+                                userId = userIdProp?.GetValue(m.Data) as string;
+                                tenantId = tenantIdProp?.GetValue(m.Data) as string;
+                                correlationId = correlationIdProp?.GetValue(m.Data) as string;
+                                requestData = dataProp?.GetValue(m.Data);
+                            }
+                        }
+
                         // Invoke the actual service method
-                        var result = methodInfo.Method.Invoke(serviceInstance, [m.Data]);
+                        var result = methodInfo.Method.Invoke(serviceInstance, [requestData]);
 
                         // Handle async methods
                         if (result is Task task)
@@ -287,7 +317,7 @@ public class ServiceFrameworkBackgroundService : BackgroundService
                                 var resultValue = task.GetType().GetProperty("Result")?.GetValue(task);
                                 if (resultValue != null)
                                 {
-                                    await m.ReplyAsync(resultValue);
+                                    await ReplyWithAuditWrapper(m, resultValue, reqSeqId, userId, tenantId, correlationId);
                                 }
                             }
                         }
@@ -296,7 +326,7 @@ public class ServiceFrameworkBackgroundService : BackgroundService
                             // Handle synchronous methods
                             if (result != null)
                             {
-                                await m.ReplyAsync(result);
+                                await ReplyWithAuditWrapper(m, result, reqSeqId, userId, tenantId, correlationId);
                             }
                         }
                     }
@@ -323,14 +353,15 @@ public class ServiceFrameworkBackgroundService : BackgroundService
         _logger.LogInformation("Adding parameterless NATS service endpoint: {EndpointName} for method: {Method} on service: {ServiceType}",
             endpointName, methodInfo.Method.Name, serviceType.Name);
 
-        var serializerRegistry = GetSerializerForConnection(connection);
+        var channelName = GetChannelName(serviceType, methodInfo);
+        var serializerRegistry = GetSerializerForConnection(channelName);
         var subject = GetSubject(methodInfo);
 
         await svcServer.AddEndpointAsync<object>(
             name: endpointName,
             serializer: serializerRegistry.GetDeserializer<object>(),
             subject: subject,
-            handler: async m =>
+            handler: async (NatsSvcMsg<object> m) =>
             {
                 // Handle exceptions which may occur during message processing
                 if (m.Exception != null)
@@ -346,6 +377,12 @@ public class ServiceFrameworkBackgroundService : BackgroundService
 
                     if (serviceInstance != null)
                     {
+                        // For parameterless methods, we still need to handle audit info
+                        Guid reqSeqId = Guid.NewGuid();
+                        string? userId = null;
+                        string? tenantId = null;
+                        string? correlationId = null;
+
                         // Invoke the parameterless service method
                         var result = methodInfo.Method.Invoke(serviceInstance, []);
 
@@ -360,7 +397,7 @@ public class ServiceFrameworkBackgroundService : BackgroundService
                                 var resultValue = task.GetType().GetProperty("Result")?.GetValue(task);
                                 if (resultValue != null)
                                 {
-                                    await m.ReplyAsync(resultValue);
+                                    await ReplyWithAuditWrapper(m, resultValue, reqSeqId, userId, tenantId, correlationId);
                                 }
                             }
                         }
@@ -369,7 +406,7 @@ public class ServiceFrameworkBackgroundService : BackgroundService
                             // Handle synchronous methods
                             if (result != null)
                             {
-                                await m.ReplyAsync(result);
+                                await ReplyWithAuditWrapper(m, result, reqSeqId, userId, tenantId, correlationId);
                             }
                         }
                     }
@@ -480,43 +517,103 @@ public class ServiceFrameworkBackgroundService : BackgroundService
         await base.StopAsync(cancellationToken);
     }
 
-    private INatsSerializerRegistry GetSerializerForConnection(INatsConnection connection)
+    private async Task ReplyWithAuditWrapper<T>(NatsSvcMsg<T> msg, object response, Guid reqSeqId, string? userId, string? tenantId, string? correlationId) where T : class
     {
-        // Find the connection settings for this connection
-        foreach (var connectionKvp in _serviceFrameworkOptions.Connections)
+        if (!_options.EnableAuditWrapper)
         {
-            var settings = connectionKvp.Value;
-            // We could check connection properties here, but for now use the serializer registry from settings
-            if (settings.NatsSerializerRegistry != null)
+            await msg.ReplyAsync(response);
+            return;
+        }
+
+        var responseType = response.GetType();
+        
+        // Check if response is already wrapped in ResponseDto
+        if (responseType.IsGenericType && responseType.GetGenericTypeDefinition() == typeof(ResponseDto<>))
+        {
+            // Already wrapped, just add audit info if not present
+            var withAuditMethod = responseType.GetMethod("WithAuditInfo");
+            if (withAuditMethod != null)
             {
-                return settings.NatsSerializerRegistry;
+                var wrappedResponse = withAuditMethod.Invoke(response, [userId, tenantId, correlationId]);
+                await msg.ReplyAsync(wrappedResponse!);
             }
+            else
+            {
+                await msg.ReplyAsync(response);
+            }
+        }
+        else if (responseType.IsGenericType && responseType.GetGenericTypeDefinition() == typeof(ErrorOr<>))
+        {
+            // Handle ErrorOr<T> type
+            var valueType = responseType.GetGenericArguments()[0];
+            var responseDtoType = typeof(ResponseDto<>).MakeGenericType(valueType);
+            
+            // Convert ErrorOr<T> to ResponseDto<T>
+            var implicitOperator = responseDtoType.GetMethod("op_Implicit", [responseType]);
+            if (implicitOperator != null)
+            {
+                var responseDto = implicitOperator.Invoke(null, [response]);
+                
+                // Add audit info
+                var withAuditMethod = responseDtoType.GetMethod("WithAuditInfo");
+                if (withAuditMethod != null && responseDto != null)
+                {
+                    responseDto = withAuditMethod.Invoke(responseDto, [userId, tenantId, correlationId]);
+                }
+                
+                await msg.ReplyAsync(responseDto!);
+            }
+            else
+            {
+                await msg.ReplyAsync(response);
+            }
+        }
+        else
+        {
+            // Wrap plain response in ResponseDto<T>
+            var responseDtoType = typeof(ResponseDto<>).MakeGenericType(responseType);
+            var successMethod = responseDtoType.GetMethod("Success", [responseType, typeof(Guid), typeof(string)]);
+            
+            if (successMethod != null)
+            {
+                var responseDto = successMethod.Invoke(null, [response, reqSeqId, null]);
+                
+                // Add audit info
+                var withAuditMethod = responseDtoType.GetMethod("WithAuditInfo");
+                if (withAuditMethod != null && responseDto != null)
+                {
+                    responseDto = withAuditMethod.Invoke(responseDto, [userId, tenantId, correlationId]);
+                }
+                
+                await msg.ReplyAsync(responseDto!);
+            }
+            else
+            {
+                await msg.ReplyAsync(response);
+            }
+        }
+    }
+
+    private INatsSerializerRegistry GetSerializerForConnection(string channelName)
+    {
+        // Find the connection settings for the specific channel
+        if (!string.IsNullOrEmpty(channelName) && 
+            _serviceFrameworkOptions.Connections.TryGetValue(channelName, out var connectionSettings) &&
+            connectionSettings.NatsSerializerRegistry != null)
+        {
+            return connectionSettings.NatsSerializerRegistry;
+        }
+        
+        // Try default connection if channelName is not found or empty
+        if (!string.IsNullOrEmpty(_serviceFrameworkOptions.DefaultConnection) &&
+            _serviceFrameworkOptions.Connections.TryGetValue(_serviceFrameworkOptions.DefaultConnection, out var defaultSettings) &&
+            defaultSettings.NatsSerializerRegistry != null)
+        {
+            return defaultSettings.NatsSerializerRegistry;
         }
         
         // Fallback to default serializer registry
         return _serviceFrameworkOptions.DefaultSerializerRegistry;
-    }
-
-    private string GetQueueGroup(Type serviceType, NatsMethodInfo methodInfo)
-    {
-        // Priority: method > class > serviceName
-        
-        // 1. Check method-level ServiceInfo attribute first
-        var methodServiceInfo = methodInfo.Method.GetCustomAttribute<ServiceInfoAttribute>();
-        if (methodServiceInfo?.QueueGroup != null)
-        {
-            return methodServiceInfo.QueueGroup;
-        }
-        
-        // 2. Check class-level ServiceInfo attribute
-        var classServiceInfo = serviceType.GetCustomAttribute<ServiceInfoAttribute>();
-        if (classServiceInfo?.QueueGroup != null)
-        {
-            return classServiceInfo.QueueGroup;
-        }
-        
-        // 3. Default to serviceName
-        return methodInfo.ServiceName;
     }
 
     private string? GetSubject(NatsMethodInfo methodInfo)

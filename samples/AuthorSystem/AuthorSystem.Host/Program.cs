@@ -6,7 +6,6 @@ using AuthorSystem.Domain.Repositories;
 using AuthorSystem.Infrastructure.Repositories;
 
 using EdgeSync.ServiceFramework.AspNetCore.Mvc;
-using EdgeSync.ServiceFramework.Extensions;
 using EdgeSync.ServiceFramework.Core.Serialization;
 using EdgeSync.ServiceFramework.DependencyInjection;
 
@@ -83,7 +82,9 @@ public class Program
             builder.Services.AddAutoConvention();
 
             builder.Services.AddSingleton<IAuthorRepository, InMemoryAuthorRepository>();
+            builder.Services.AddSingleton<IBookRepository, InMemoryBookRepository>();
             builder.Services.AddScoped<IAuthorAppService, AuthorAppService>();
+            builder.Services.AddScoped<IBookAppService, BookAppService>();
 
             builder.Services.AddAutoMapper(typeof(AuthorMappingProfile));
 
