@@ -12,6 +12,7 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="NATS.Client.Core" />
     <PackageReference Include="NSubstitute" />
     <PackageReference Include="ShouldLy" />
     <PackageReference Include="xunit" />

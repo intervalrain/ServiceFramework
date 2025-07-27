@@ -1,6 +1,6 @@
 namespace EdgeSync.ServiceFramework.Abstractions.Attributes;
 
-[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method | AttributeTargets.Interface)]
 public class ServiceInfoAttribute : Attribute
 {
     public string? ServiceName { get; set; }

@@ -6,7 +6,9 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
 using EdgeSync.ServiceFramework.Core.Filters;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
+using EdgeSync.ServiceFramework.IntegrationTests.TestHelpers;
 using NATS.Client.Core;
+using NSubstitute;
 using System.Reflection;
 
 namespace EdgeSync.ServiceFramework.IntegrationTests.TestHelpers;
@@ -67,40 +69,10 @@ public static class TestFixtures
     {
         var connection = Substitute.For<INatsConnection>();
         
-        // Setup server info
-        connection.ServerInfo.Returns(new NatsServerInfo(
-            "test-server", "2.9.0", "go1.19", "localhost", 4222, 8888, false, 0, [], []));
+        // Simple test connection setup
         
-        // Setup request-response behavior
-        connection.RequestAsync<object?, object?>(
-            Arg.Any<string>(), 
-            Arg.Any<object?>(), 
-            Arg.Any<INatsSerializerRegistry>(), 
-            Arg.Any<NatsRequestOpts?>(), 
-            Arg.Any<CancellationToken>())
-            .Returns(callInfo =>
-            {
-                var subject = callInfo.ArgAt<string>(0);
-                var request = callInfo.ArgAt<object?>(1);
-                
-                // Return a mock response based on the subject
-                return subject switch
-                {
-                    "test.request-response" => Task.FromResult<object?>("Processed: test"),
-                    "test.parameterless" => Task.FromResult<object?>(42),
-                    _ => Task.FromResult<object?>("Default response")
-                };
-            });
-
-        // Setup publish behavior
-        connection.PublishAsync<object?>(
-            Arg.Any<string>(), 
-            Arg.Any<object?>(), 
-            Arg.Any<NatsHeaders?>(), 
-            Arg.Any<string?>(), 
-            Arg.Any<INatsSerializerRegistry>(), 
-            Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+        // Basic test connection setup
+        // Actual NATS behavior is handled by the serializer adapters in the framework
 
         return connection;
     }

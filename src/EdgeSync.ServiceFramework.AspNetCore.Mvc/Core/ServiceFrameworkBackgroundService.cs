@@ -97,6 +97,8 @@ public class ServiceFrameworkBackgroundService : BackgroundService
     }
 
 
+    public Task ExecuteForTestingAsync(CancellationToken stoppingToken) => ExecuteAsync(stoppingToken);
+
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Stopping Service Framework Background Service");

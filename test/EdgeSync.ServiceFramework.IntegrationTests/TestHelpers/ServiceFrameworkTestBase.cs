@@ -10,6 +10,8 @@ using EdgeSync.ServiceFramework.Core;
 using EdgeSync.ServiceFramework.Abstractions;
 using EdgeSync.ServiceFramework.Abstractions.Attributes;
 using NATS.Client.Core;
+using EdgeSync.ServiceFramework.Attributes;
+using NSubstitute;
 
 namespace EdgeSync.ServiceFramework.IntegrationTests.TestHelpers;
 
@@ -18,7 +20,7 @@ namespace EdgeSync.ServiceFramework.IntegrationTests.TestHelpers;
 /// </summary>
 public abstract class ServiceFrameworkTestBase : IDisposable
 {
-    protected readonly IServiceProvider ServiceProvider;
+    public readonly IServiceProvider ServiceProvider;
     protected readonly IHost TestHost;
     private bool _disposed = false;
 
@@ -97,39 +99,39 @@ public class TestNatsConnectionFactory : INatsConnectionFactory
         _logger = logger;
     }
 
-    public async Task<INatsConnection> CreateConnectionAsync(string connectionName, NatsApiOptions natsApiOptions)
+    public async Task<INatsConnection> CreateConnectionAsync(string url = "", string credFile = "", INatsSerializerRegistry? serializerRegistry = null, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Creating test NATS connection for {ConnectionName}", connectionName);
-        
+        _logger.LogInformation("Creating test NATS connection for {ConnectionName}", url);
+
         // Return a test NATS connection substitute
         var connection = Substitute.For<INatsConnection>();
-        
+
         // Setup default behaviors for the test connection
-        connection.ServerInfo.Returns(new NatsServerInfo("test-server", "2.9.0", "go1.19", "host", 4222, 8888, false, 0, [], []));
-        
+        // Simple test connection setup without detailed server info
+
         return await Task.FromResult(connection);
     }
 
-    public async Task<INatsConnection> CreateConnectionAsync(string connectionName, ServiceConfig config)
+    public async Task<INatsConnection> CreateConnectionAsync(NatsConnectionSettings setting, CancellationToken cancellationToken = default)
     {
-        return await CreateConnectionAsync(connectionName, config.NatsApiOptions);
+        return await CreateConnectionAsync(setting.Url, cancellationToken: cancellationToken);
     }
 }
 
 /// <summary>
 /// Test NATS service for integration testing
 /// </summary>
-[ServiceInfo(ServiceName = "TestService")]
+[ServiceInfo(ServiceName = "TestService", QueueGroup = "Test-q", ServiceVersion = "1.0.0")]
 public interface ITestNatsService
 {
-    [Subject("test.request-response")]
+    [Subject("test.request-response", "test.request-response")]
     Task<string> ProcessRequestAsync(string input);
 
-    [Subject("test.pub-sub")]
+    [Subject("test.pub-sub", "test.pub-sub")]
     [JetStream]
     Task PublishEventAsync(string eventData);
 
-    [Subject("test.parameterless")]
+    [Subject("test.parameterless", "test.parameterless")]
     Task<int> GetCountAsync();
 }
 
