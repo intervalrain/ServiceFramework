@@ -215,7 +215,7 @@ public abstract class BaseSubscriptionHandler : ISubscriptionHandler
                     }
                     else
                     {
-                        args[i] = deserializedData;
+                        args[i] = deserializedData!;
                     }
                 }
                 catch (Exception ex)

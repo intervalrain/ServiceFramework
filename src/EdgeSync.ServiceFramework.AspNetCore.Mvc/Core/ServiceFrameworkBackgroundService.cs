@@ -29,6 +29,7 @@ public class ServiceFrameworkBackgroundService : BackgroundService
     private readonly AutoConventionOptions _options;
     private readonly ServiceFrameworkOptions _serviceFrameworkOptions;
     private readonly List<IAsyncDisposable> _subscriptions = [];
+    private readonly List<INatsSvcServer> _serviceServers = [];
     private readonly List<(Type ServiceType, List<NatsMethodInfo> Methods)> _pubsubServices = [];
     private readonly List<(Type ServiceType, List<NatsMethodInfo> Methods)> _reqrspServices = [];
 
@@ -201,7 +202,7 @@ public class ServiceFrameworkBackgroundService : BackgroundService
 
         // Add service to context
         var svcServer = await svcContext.AddServiceAsync(config, cancellationToken);
-        _subscriptions.Add(svcServer);
+        _serviceServers.Add(svcServer);
 
         return svcServer;
     }
@@ -502,6 +503,22 @@ public class ServiceFrameworkBackgroundService : BackgroundService
     {
         _logger.LogInformation("Stopping NATS reflection background service");
 
+        // Stop and dispose service servers first (this will also stop their endpoints)
+        foreach (var serviceServer in _serviceServers)
+        {
+            try
+            {
+                _logger.LogDebug("Stopping NATS service server: {ServiceName}", serviceServer.GetInfo().Name ?? "Unknown");
+                await serviceServer.StopAsync(cancellationToken);
+                await serviceServer.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error stopping/disposing service server");
+            }
+        }
+
+        // Then dispose pub-sub subscriptions
         foreach (var subscription in _subscriptions)
         {
             try
@@ -513,6 +530,9 @@ public class ServiceFrameworkBackgroundService : BackgroundService
                 _logger.LogError(ex, "Error disposing subscription");
             }
         }
+
+        _serviceServers.Clear();
+        _subscriptions.Clear();
 
         await base.StopAsync(cancellationToken);
     }

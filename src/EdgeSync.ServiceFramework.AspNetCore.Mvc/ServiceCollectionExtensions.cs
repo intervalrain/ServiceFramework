@@ -9,6 +9,7 @@ using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.RouteBuilders;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Subscriptions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.SwaggerGen;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
+using EdgeSync.ServiceFramework.Core.Filters;
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -80,6 +81,9 @@ public static class ServiceCollectionExtensions
         });
         services.AddTransient<ApplicationServiceConvention>();
         services.AddSingleton<IConfigureOptions<MvcOptions>, ConfigureMvcConvention>();
+        
+        // Register the NATS proxy action filter
+        services.AddScoped<NatsProxyActionFilter>();
 
         if (options.UseExceptionHandler)
         {

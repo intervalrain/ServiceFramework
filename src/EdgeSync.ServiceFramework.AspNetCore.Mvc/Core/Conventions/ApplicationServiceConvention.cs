@@ -9,6 +9,8 @@ using EdgeSync.ServiceFramework.AspNetCore.Mvc.Extensions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Decisions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Handlers;
 using EdgeSync.ServiceFramework.Attributes;
+using EdgeSync.ServiceFramework.Abstractions.Attributes;
+using EdgeSync.ServiceFramework.Core.Filters;
 using ErrorOr;
 
 namespace EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Conventions;
@@ -129,26 +131,53 @@ public class ApplicationServiceConvention : IApplicationModelConvention
             ActionName = GetActionName(method, subjectAttribute?.EndpointName)
         };
 
-        // Add metadata for Swagger documentation
+        // Add metadata for Swagger documentation and NATS proxy
         actionModel.Properties["ServiceType"] = controllerModel.ControllerType.AsType();
+        actionModel.Properties["ServiceName"] = method.DeclaringType?.Name ?? "Unknown";
         actionModel.Properties["MethodName"] = method.Name;
         actionModel.Properties["OriginalMethod"] = method;
+        actionModel.Properties["Subject"] = subjectAttribute?.CustomSubject;
         actionModel.Properties["ConventionMode"] = decisionResult.Mode;
+        actionModel.Properties["ChannelName"] = GetChannelName(controllerModel.ControllerType.AsType(), method);
+
+        // Add the NATS proxy action filter to intercept execution
+        actionModel.Filters.Add(new TypeFilterAttribute(typeof(NatsProxyActionFilter)));
 
         // Configure action using the appropriate handler
         handler.ConfigureAction(actionModel, method, subjectAttribute!, setting, controllerRoute);
 
         actionModel.ApiExplorer.IsVisible = true;
 
-        // Add ErrorOr handling if enabled
-        if (_options.UseExceptionHandler && IsErrorOrReturnType(method.ReturnType))
-        {
-            AddErrorOrHandling(actionModel);
-        }
+        // Don't add ErrorOr handling since NATS proxy will return ResponseDto
+        // if (_options.UseExceptionHandler && IsErrorOrReturnType(method.ReturnType))
+        // {
+        //     AddErrorOrHandling(actionModel);
+        // }
 
         return actionModel;
     }
 
+    private static string GetChannelName(Type serviceType, MethodInfo method)
+    {
+        // Priority: method > class > default connection
+
+        // 1. Check method-level Channel attribute
+        var methodChannel = method.GetCustomAttribute<ChannelAttribute>();
+        if (methodChannel != null)
+        {
+            return methodChannel.Name;
+        }
+
+        // 2. Check class-level Channel attribute  
+        var classChannel = serviceType.GetCustomAttribute<ChannelAttribute>();
+        if (classChannel != null)
+        {
+            return classChannel.Name;
+        }
+
+        // 3. Use empty string for default connection
+        return string.Empty;
+    }
 
     #endregion
 
