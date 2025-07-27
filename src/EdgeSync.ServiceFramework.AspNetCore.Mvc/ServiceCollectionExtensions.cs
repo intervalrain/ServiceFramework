@@ -3,13 +3,17 @@ using System.Text.Json;
 
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Abstractions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core;
+using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Abstractions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Conventions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Decisions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.RouteBuilders;
+using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Services;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Subscriptions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.SwaggerGen;
+using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Handlers;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
 using EdgeSync.ServiceFramework.Core.Filters;
+using EdgeSync.ServiceFramework.Core.Serializers;
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,6 +40,8 @@ public static class ServiceCollectionExtensions
         services.AddServiceFrameworkSwagger(options.UseExceptionHandler, setupAction);
         services.AddNatsServiceAutoDiscovery(options.Settings!);
         services.AddSubscriptionHandlers();
+        services.AddSerializerAdapters();
+        services.AddServiceFrameworkComponents();
         services.AddHostedService<ServiceFrameworkBackgroundService>();
 
         services.ConfigureHttpJsonOptions(opts =>
@@ -73,6 +79,11 @@ public static class ServiceCollectionExtensions
     {
         services.AddSingleton<IAutoConventionRouteBuilder, TAutoConventionRouteBuilder>();
         services.AddSingleton<IConventionDecisionMaker, ConventionDecisionMaker>();
+        
+        // Register the new builder components
+        services.AddSingleton<IControllerModelBuilder, ControllerModelBuilder>();
+        services.AddSingleton<IActionModelBuilder, ActionModelBuilder>();
+        
         services.AddControllers().AddJsonOptions(opts =>
         {
             opts.JsonSerializerOptions.PropertyNamingPolicy = _defaultOptions.PropertyNamingPolicy;
@@ -195,6 +206,31 @@ public static class ServiceCollectionExtensions
 
         // Register the factory
         services.AddSingleton<ISubscriptionHandlerFactory, SubscriptionHandlerFactory>();
+
+        return services;
+    }
+
+    private static IServiceCollection AddServiceFrameworkComponents(this IServiceCollection services)
+    {
+        // Register the core service framework components (Singletons for stateless services)
+        services.AddSingleton<IServiceDiscovery, ServiceDiscovery>();
+        services.AddSingleton<IServiceRegistrar, ServiceRegistrar>();
+        services.AddSingleton<IMethodInfoBuilder, MethodInfoBuilder>();
+        services.AddSingleton<IPubSubManager, PubSubManager>();
+        services.AddSingleton<IConnectionResolver, ConnectionResolver>();
+        services.AddSingleton<IChannelResolver, ChannelResolver>();
+
+        // Register refactored action filter components (Scoped for per-request state)
+        services.AddScoped<IAuditHandler, AuditHandler>();
+        services.AddScoped<IRequestDataExtractor, RequestDataExtractor>();
+        services.AddScoped<IResponseProcessor, ResponseProcessor>();
+
+        // Register Convention Mode Handlers (Scoped for per-request state)
+        services.AddScoped<IConventionModeHandler, NatsRequestResponseHandler>();
+        services.AddScoped<IConventionModeHandler, PubSubHandler>();
+        
+        // Register the factory (Scoped to match handler dependencies)
+        services.AddScoped<IConventionModeHandlerFactory, ConventionModeHandlerFactory>();
 
         return services;
     }

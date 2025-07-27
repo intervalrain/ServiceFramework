@@ -4,6 +4,8 @@ package AuthorSystem.Application.Protos;
 
 option csharp_namespace = "AuthorSystem.Application.Protos";
 
+import "google/protobuf/empty.proto";
+
 // Book message definition
 message BookDto {
     string id = 1;
@@ -41,4 +43,23 @@ message UpdateBookDto {
     int32 publication_year = 6;
     double price = 7;
     bool is_available = 8;
+}
+
+// Generic wrapper for any .NET object serialized as JSON
+message JsonPayload {
+    string json_data = 1;
+    string type_name = 2; // Full type name for deserialization
+}
+
+// Generic request wrapper
+message GenericRequest {
+    oneof payload {
+        google.protobuf.Empty empty = 1;
+        JsonPayload data = 2;
+    }
+}
+
+// Generic response wrapper  
+message GenericResponse {
+    JsonPayload data = 1;
 }

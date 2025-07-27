@@ -1,0 +1,34 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="NSubstitute" />
+    <PackageReference Include="ShouldLy" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="Shouldly" />
+    <Using Include="NSubstitute" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\EdgeSync.ServiceFramework.Abstractions\EdgeSync.ServiceFramework.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\EdgeSync.ServiceFramework.AspNetCore.Mvc\EdgeSync.ServiceFramework.AspNetCore.Mvc.csproj" />
+    <ProjectReference Include="..\..\src\EdgeSync.ServiceFramework.Core\EdgeSync.ServiceFramework.Core.csproj" />
+    <ProjectReference Include="..\..\src\EdgeSync.ServiceFramework.Testlib\EdgeSync.ServiceFramework.Testlib.csproj" />
+  </ItemGroup>
+
+</Project>
