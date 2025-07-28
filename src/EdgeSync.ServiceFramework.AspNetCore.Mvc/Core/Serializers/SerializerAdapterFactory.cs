@@ -19,8 +19,8 @@ public class SerializerAdapterFactory : ISerializerAdapterFactory
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
-        _adapters = new List<ISerializerAdapter>();
-        _adapterCache = new Dictionary<string, ISerializerAdapter>();
+        _adapters = [];
+        _adapterCache = [];
         
         // Register built-in adapters
         RegisterBuiltInAdapters();
@@ -116,12 +116,6 @@ public class SerializerAdapterFactory : ISerializerAdapterFactory
         // Register JSON adapter (enhanced with type safety)
         var jsonAdapter = new JsonSerializerAdapter(_serviceProvider.GetRequiredService<ILogger<JsonSerializerAdapter>>());
         _adapters.Add(jsonAdapter);
-        
-        // Register Enhanced Protobuf adapter (with better type handling)
-        var enhancedProtobufAdapter = new EnhancedProtobufSerializerAdapter(
-            _serviceProvider.GetRequiredService<ILogger<EnhancedProtobufSerializerAdapter>>(),
-            _serviceProvider.GetRequiredService<ProtobufTypeMapper>());
-        _adapters.Add(enhancedProtobufAdapter);
 
         // Register legacy Protobuf adapter for backward compatibility
         var protobufAdapter = new ProtobufSerializerAdapter(

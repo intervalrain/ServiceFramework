@@ -14,10 +14,31 @@ public class ActionContextMetadata
 
     public ActionContextMetadata(ActionDescriptor actionDescriptor)
     {
-        ServiceName = actionDescriptor.Properties[nameof(ServiceName)] as string ?? "Unknown";
-        MethodName = actionDescriptor.Properties[nameof(MethodName)] as string ?? "Unknown";
-        Subject = actionDescriptor.Properties[nameof(Subject)] as string ?? string.Empty;
-        ConventionMode = (ConventionMode)(actionDescriptor.Properties[nameof(ConventionMode)] ?? ConventionMode.RequestResponse);
-        ChannelName = actionDescriptor.Properties[nameof(ChannelName)] as string ?? string.Empty;
+        ServiceName = actionDescriptor.Properties.TryGetValue(nameof(ServiceName), out var serviceName) 
+            ? serviceName as string ?? "Unknown" 
+            : "Unknown";
+            
+        MethodName = actionDescriptor.Properties.TryGetValue(nameof(MethodName), out var methodName) 
+            ? methodName as string ?? "Unknown" 
+            : "Unknown";
+            
+        Subject = actionDescriptor.Properties.TryGetValue(nameof(Subject), out var subject) 
+            ? subject as string ?? string.Empty 
+            : string.Empty;
+        
+        // Safely get ConventionMode with proper fallback
+        if (actionDescriptor.Properties.TryGetValue(nameof(ConventionMode), out var conventionModeValue) && 
+            conventionModeValue is ConventionMode mode)
+        {
+            ConventionMode = mode;
+        }
+        else
+        {
+            ConventionMode = ConventionMode.RequestResponse;
+        }
+        
+        ChannelName = actionDescriptor.Properties.TryGetValue(nameof(ChannelName), out var channelName) 
+            ? channelName as string ?? string.Empty 
+            : string.Empty;
     }
 }

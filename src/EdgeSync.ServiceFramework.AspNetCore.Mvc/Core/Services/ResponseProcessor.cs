@@ -119,12 +119,12 @@ public class ResponseProcessor : IResponseProcessor
             }
             else
             {
-                // Get Error and ErrorMessage for failed response
-                var errorProperty = responseDtoType.GetProperty("Error");
-                var errorMessageProperty = responseDtoType.GetProperty("ErrorMessage");
+                // Get Message and Errors for failed response
+                var messageProperty = responseDtoType.GetProperty("Message");
+                var errorsProperty = responseDtoType.GetProperty("Errors");
 
-                var error = errorProperty?.GetValue(responseDto);
-                var errorMessage = errorMessageProperty?.GetValue(responseDto) as string ?? "Unknown error";
+                var errorMessage = messageProperty?.GetValue(responseDto) as string ?? "Unknown error";
+                var errors = errorsProperty?.GetValue(responseDto);
 
                 // Extract audit info from response
                 var reqSeqIdProp = responseDtoType.GetProperty("ReqSeqId");

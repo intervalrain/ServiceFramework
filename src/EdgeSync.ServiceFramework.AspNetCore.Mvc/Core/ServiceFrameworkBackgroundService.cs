@@ -1,5 +1,6 @@
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Abstractions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
+using EdgeSync.ServiceFramework.Core.Abstractions;
 
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;

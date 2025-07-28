@@ -197,7 +197,7 @@ public class NatsRequestResponseHandler : IConventionModeHandler
             var responseType = response.GetType();
 
             // Check if it's a ResponseDto<T>
-            if (responseType.IsGenericType && responseType.GetGenericTypeDefinition() == typeof(EdgeSync.ServiceFramework.Data.ResponseDto<>))
+            if (responseType.IsGenericType && responseType.GetGenericTypeDefinition() == typeof(Data.ResponseDto<>))
             {
                 var reqSeqIdProp = responseType.GetProperty("ReqSeqId");
                 var rspSeqIdProp = responseType.GetProperty("RspSeqId");

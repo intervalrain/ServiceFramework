@@ -25,9 +25,16 @@ public class ApplicationServiceConvention : IApplicationModelConvention
 
     public void Apply(ApplicationModel application)
     {
+        ArgumentNullException.ThrowIfNull(application);
+        
         _logger.LogDebug("Applying ApplicationServiceConvention to application model");
 
         var controllers = _controllerModelBuilder.CreateNatsServiceModels(application);
+        
+        if (controllers == null)
+        {
+            throw new ArgumentNullException(nameof(controllers), "Controller model builder returned null controllers");
+        }
 
         var controllerCount = 0;
         foreach (var controller in controllers)

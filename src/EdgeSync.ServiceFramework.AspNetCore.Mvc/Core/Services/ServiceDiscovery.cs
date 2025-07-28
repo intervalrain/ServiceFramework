@@ -1,12 +1,13 @@
-using EdgeSync.ServiceFramework.Abstractions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Abstractions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Decisions;
+using EdgeSync.ServiceFramework.Core.Abstractions;
+using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Services;
+namespace EdgeSync.ServiceFramework.Core.Services;
 
 /// <summary>
 /// Service discovery implementation for finding and categorizing NATS services
@@ -69,7 +70,7 @@ public class ServiceDiscovery : IServiceDiscovery
         }
     }
 
-    private async Task ProcessServiceType(Type serviceType, ServiceDiscoveryResult result)
+    private Task ProcessServiceType(Type serviceType, ServiceDiscoveryResult result)
     {
         try
         {
@@ -80,7 +81,7 @@ public class ServiceDiscovery : IServiceDiscovery
             {
                 // Get NATS methods with decision logic
                 var natsMethods = _methodInfoBuilder.GetNatsMethodsWithDecision(service);
-                
+
                 // Categorize methods by convention mode
                 var pubsubMethods = natsMethods.Where(m => !m.IsRequestResponse).ToList();
                 var reqrspMethods = natsMethods.Where(m => m.IsRequestResponse).ToList();
@@ -88,14 +89,14 @@ public class ServiceDiscovery : IServiceDiscovery
                 if (pubsubMethods.Any())
                 {
                     result.PubSubServices.Add((serviceType, pubsubMethods));
-                    _logger.LogDebug("Service {ServiceType} has {MethodCount} pub-sub methods", 
+                    _logger.LogDebug("Service {ServiceType} has {MethodCount} pub-sub methods",
                         serviceType.Name, pubsubMethods.Count);
                 }
 
                 if (reqrspMethods.Any())
                 {
                     result.ReqRspServices.Add((serviceType, reqrspMethods));
-                    _logger.LogDebug("Service {ServiceType} has {MethodCount} request-response methods", 
+                    _logger.LogDebug("Service {ServiceType} has {MethodCount} request-response methods",
                         serviceType.Name, reqrspMethods.Count);
                 }
             }
@@ -109,6 +110,7 @@ public class ServiceDiscovery : IServiceDiscovery
             _logger.LogError(ex, "Error processing service type {ServiceType}", serviceType.Name);
             // Continue with other services instead of failing completely
         }
+        return Task.CompletedTask;
     }
 
     private NatsService? GetOrCreateServiceInstance(IServiceScope scope, Type serviceType)

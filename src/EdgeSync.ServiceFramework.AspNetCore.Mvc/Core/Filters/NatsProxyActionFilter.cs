@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.Logging;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Abstractions;
-using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
+
 
 namespace EdgeSync.ServiceFramework.Core.Filters;
 
@@ -57,9 +57,9 @@ public class NatsProxyActionFilter : IAsyncActionFilter
             var connection = await _connectionResolver.GetConnectionAsync(metadata.ChannelName);
             if (connection == null)
             {
-                _logger.LogError("Unable to connect to NATS for channel: {ChannelName}", 
-                    metadata.ChannelName ?? "default");
-                context.Result = new ObjectResult($"Unable to connect to NATS for channel: {metadata.ChannelName ?? "default"}")
+                var channelDisplayName = string.IsNullOrEmpty(metadata.ChannelName) ? "default" : metadata.ChannelName;
+                _logger.LogError("Unable to connect to NATS for channel: {ChannelName}", channelDisplayName);
+                context.Result = new ObjectResult($"Unable to connect to NATS for channel: {channelDisplayName}")
                 {
                     StatusCode = 500
                 };

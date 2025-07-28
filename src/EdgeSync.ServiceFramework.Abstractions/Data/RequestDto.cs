@@ -31,6 +31,16 @@ public record RequestDto<T>
         };
     }
 
+    public static RequestDto<T> Create(T data, string? userId, string? tenantId, string? correlationId)
+    {
+        return new RequestDto<T>(data)
+        {
+            UserId = userId,
+            TenantId = tenantId,
+            CorrelationId = correlationId
+        };
+    }
+
     public RequestDto<T> WithAuditInfo(string? userId, string? tenantId)
     {
         return this with

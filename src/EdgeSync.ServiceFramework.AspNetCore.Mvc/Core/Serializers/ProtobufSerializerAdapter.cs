@@ -3,18 +3,16 @@ using Microsoft.Extensions.Logging;
 using EdgeSync.ServiceFramework.Data;
 using EdgeSync.ServiceFramework.Abstractions.Protos;
 using EdgeSync.ServiceFramework.Abstractions.Serialization;
-using System.Reflection;
-using System.Text.Json;
 using ProtobufEmpty = Google.Protobuf.WellKnownTypes.Empty;
-
 
 namespace EdgeSync.ServiceFramework.Core.Serializers;
 
 /// <summary>
-/// Adapter for Protobuf serializers, providing a unified interface while handling Protobuf-specific constraints.
-/// Protobuf serializers require specific message types and have limitations with generic object types.
+/// Enhanced Protobuf serializer adapter that provides type-safe operations
+/// for complex generic types including ErrorOr&lt;T&gt; and collections.
+/// Uses UniversalMessage for seamless type conversion.
 /// </summary>
-public class ProtobufSerializerAdapter : ISerializerAdapter
+public class ProtobufSerializerAdapter : ITypedSerializerAdapter
 {
     private readonly ILogger<ProtobufSerializerAdapter> _logger;
     private readonly ProtobufTypeMapper _typeMapper;
@@ -34,6 +32,8 @@ public class ProtobufSerializerAdapter : ISerializerAdapter
                registryType.Namespace?.Contains("Protobuf", StringComparison.OrdinalIgnoreCase) == true;
     }
 
+    #region Legacy ISerializerAdapter Implementation
+
     public async Task<object?> SendRequestAsync(
         INatsConnection connection, 
         string subject, 
@@ -42,112 +42,34 @@ public class ProtobufSerializerAdapter : ISerializerAdapter
         Type? expectedResponseType,
         INatsSerializerRegistry serializerRegistry)
     {
-        _logger.LogDebug("ProtobufSerializerAdapter: Sending request to subject {Subject}, IsParameterless: {IsParameterless}, ExpectedResponseType: {ResponseType}", 
-            subject, isOriginallyParameterless, expectedResponseType?.Name ?? "Unknown");
+        _logger.LogDebug("EnhancedProtobufSerializerAdapter: Legacy SendRequestAsync called for subject {Subject}", subject);
 
         if (isOriginallyParameterless)
         {
             if (request != null)
             {
-                // Originally parameterless method with EnableAuditWrapper=true
-                // Protobuf has issues with RequestDto<T> - throw descriptive error
-                _logger.LogWarning("ProtobufSerializerAdapter: Protobuf not supported with audit wrapper for subject {Subject}", subject);
-                throw new NotSupportedException(
-                    $"Protobuf serialization is not supported for RequestDto<T> types. Subject: {subject}. " +
-                    "Please use JSON serializer when EnableAuditWrapper=true.");
-            }
-            else
-            {
-                // Originally parameterless method with EnableAuditWrapper=false
-                _logger.LogDebug("ProtobufSerializerAdapter: Sending Empty message for parameterless method with expected response type: {ResponseType}", 
-                    expectedResponseType?.Name ?? "Unknown");
-                
-                var emptyMessage = EmptyMessage.Create();
-                
-                // Use universal Protobuf approach with UniversalMessage
-                _logger.LogDebug("ProtobufSerializerAdapter: Using UniversalMessage for parameterless method, expected response type: {ResponseType}", 
-                    expectedResponseType?.Name ?? "Unknown");
-                
-                try
-                {
-                    // Send empty request and expect UniversalMessage response
-                    var response = await connection.RequestAsync<ProtobufEmpty, UniversalMessage>(subject, emptyMessage,
-                        requestSerializer: serializerRegistry.GetSerializer<ProtobufEmpty>(),
-                        replySerializer: serializerRegistry.GetDeserializer<UniversalMessage>());
-                    
-                    // Convert UniversalMessage back to expected .NET type
-                    if (response.Data != null)
-                    {
-                        var result = UniversalProtobufConverter.FromUniversalMessage(response.Data, expectedResponseType);
-                        _logger.LogDebug("ProtobufSerializerAdapter: Successfully converted UniversalMessage to {ResultType}", 
-                            result?.GetType().Name ?? "null");
-                        return result;
-                    }
-                    
-                    return null;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "ProtobufSerializerAdapter: Error in UniversalMessage approach for subject {Subject}", subject);
-                    throw;
-                }
-            }
-        }
-        else if (request != null)
-        {
-            // For requests with data - check if it's a RequestDto<T> which is problematic for Protobuf
-            var requestType = request.GetType();
-            if (requestType.IsGenericType && requestType.GetGenericTypeDefinition() == typeof(RequestDto<>))
-            {
-                _logger.LogWarning("ProtobufSerializerAdapter: RequestDto<T> not supported with Protobuf for subject {Subject}", subject);
                 throw new NotSupportedException(
                     $"Protobuf serialization is not supported for RequestDto<T> types. Subject: {subject}. " +
                     "Please use JSON serializer when EnableAuditWrapper=true.");
             }
 
-            // For other data types, attempt to use Protobuf but warn about potential issues
-            _logger.LogDebug("ProtobufSerializerAdapter: Sending request with data, RequestType: {RequestType}", requestType.Name);
-            _logger.LogWarning("ProtobufSerializerAdapter: Using object type with Protobuf may cause issues. Consider using strongly-typed messages.");
-            
-            try
-            {
-                var response = await connection.RequestAsync<object, object>(subject, request,
-                    requestSerializer: serializerRegistry.GetSerializer<object>(),
-                    replySerializer: serializerRegistry.GetDeserializer<object>());
-                return response.Data;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "ProtobufSerializerAdapter: Failed to serialize request with Protobuf. Consider using JSON serializer.");
-                throw;
-            }
+            return await SendParameterlessRequestInternalAsync(connection, subject, expectedResponseType, serializerRegistry);
         }
-        else
+
+        if (request != null)
         {
-            // Fallback case - treat as parameterless with Empty message
-            _logger.LogDebug("ProtobufSerializerAdapter: Fallback to Empty message handling");
-            var emptyMessage = EmptyMessage.Create();
-            
-            _logger.LogWarning("ProtobufSerializerAdapter: Using string serialization for fallback response due to Protobuf type limitations");
-            var response = await connection.RequestAsync<ProtobufEmpty, string>(subject, emptyMessage,
-                requestSerializer: serializerRegistry.GetSerializer<ProtobufEmpty>(),
-                replySerializer: serializerRegistry.GetDeserializer<string>());
-            
-            // Try to deserialize the string response back to object
-            if (!string.IsNullOrEmpty(response.Data))
+            var requestType = request.GetType();
+            if (requestType.IsGenericType && requestType.GetGenericTypeDefinition() == typeof(RequestDto<>))
             {
-                try
-                {
-                    return System.Text.Json.JsonSerializer.Deserialize<object>(response.Data);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to deserialize Protobuf string response, returning raw string");
-                    return response.Data;
-                }
+                throw new NotSupportedException(
+                    $"Protobuf serialization is not supported for RequestDto<T> types. Subject: {subject}. " +
+                    "Please use JSON serializer when EnableAuditWrapper=true.");
             }
-            return null;
+
+            return await SendTypedRequestInternalAsync(connection, subject, request, expectedResponseType, serializerRegistry);
         }
+
+        return await SendParameterlessRequestInternalAsync(connection, subject, expectedResponseType, serializerRegistry);
     }
 
     public async Task PublishAsync(
@@ -158,41 +80,186 @@ public class ProtobufSerializerAdapter : ISerializerAdapter
     {
         if (message == null)
         {
-            // For parameterless publish - use Empty message
             var emptyMessage = EmptyMessage.Create();
             await connection.PublishAsync(subject, emptyMessage,
                 serializer: serializerRegistry.GetSerializer<ProtobufEmpty>());
         }
         else
         {
-            // For publish with data - check for RequestDto<T> compatibility issues
             var messageType = message.GetType();
             if (messageType.IsGenericType && messageType.GetGenericTypeDefinition() == typeof(RequestDto<>))
             {
-                _logger.LogWarning("ProtobufSerializerAdapter: Publishing RequestDto<T> with Protobuf may cause issues");
+                _logger.LogWarning("EnhancedProtobufSerializerAdapter: Publishing RequestDto<T> with Protobuf may cause issues");
             }
 
-            await connection.PublishAsync(subject, message,
-                serializer: serializerRegistry.GetSerializer<object>());
+            var universalMessage = UniversalProtobufConverter.ToUniversalMessage(message);
+            await connection.PublishAsync(subject, universalMessage,
+                serializer: serializerRegistry.GetSerializer<UniversalMessage>());
         }
     }
 
 
-    public Type? GetEmptyMessageType()
-    {
-        // Protobuf requires Empty message for parameterless operations
-        return typeof(ProtobufEmpty);
-    }
+    public Type? GetEmptyMessageType() => typeof(ProtobufEmpty);
 
     public bool IsTypeCompatible(Type type)
     {
-        // Protobuf has specific compatibility requirements
-        if (type == typeof(ProtobufEmpty))
+        // RequestDto<T> is problematic with Protobuf
+        if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(RequestDto<>))
         {
-            return true;
+            return false;
         }
 
-        // RequestDto<T> is problematic with Protobuf
+        // With UniversalMessage, we can handle most .NET types
+        return IsSerializableType(type);
+    }
+
+    public SerializerEndpointConfig GetEndpointConfig(INatsSerializerRegistry serializerRegistry)
+    {
+        return new SerializerEndpointConfig
+        {
+            ParameterlessHandlerType = typeof(ProtobufEmpty),
+            RequiresAuditWrapperHandling = true,
+            RequestSerializer = serializerRegistry.GetSerializer<UniversalMessage>(),
+            ResponseDeserializer = serializerRegistry.GetDeserializer<UniversalMessage>()
+        };
+    }
+
+    #endregion
+
+    #region ITypedSerializerAdapter Implementation
+
+    public async Task<TResponse> SendRequestAsync<TRequest, TResponse>(
+        INatsConnection connection,
+        string subject,
+        TRequest request,
+        INatsSerializerRegistry serializerRegistry)
+    {
+        _logger.LogDebug("EnhancedProtobufSerializerAdapter: Sending typed request to subject {Subject}, RequestType: {RequestType}, ResponseType: {ResponseType}", 
+            subject, typeof(TRequest).Name, typeof(TResponse).Name);
+
+        try
+        {
+            // Convert request to UniversalMessage
+            var requestMessage = UniversalProtobufConverter.ToUniversalMessage(request);
+
+            // Send request and receive UniversalMessage response
+            var response = await connection.RequestAsync<UniversalMessage, UniversalMessage>(subject, requestMessage,
+                requestSerializer: serializerRegistry.GetSerializer<UniversalMessage>(),
+                replySerializer: serializerRegistry.GetDeserializer<UniversalMessage>());
+
+            // Convert response back to expected type
+            var result = UniversalProtobufConverter.FromUniversalMessage(response.Data, typeof(TResponse));
+            
+            _logger.LogDebug("EnhancedProtobufSerializerAdapter: Successfully converted response to {ResponseType}", typeof(TResponse).Name);
+            return (TResponse)result!;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "EnhancedProtobufSerializerAdapter: Error in typed request for subject {Subject}", subject);
+            throw;
+        }
+    }
+
+    public async Task<TResponse> SendParameterlessRequestAsync<TResponse>(
+        INatsConnection connection,
+        string subject,
+        INatsSerializerRegistry serializerRegistry)
+    {
+        _logger.LogDebug("EnhancedProtobufSerializerAdapter: Sending parameterless typed request to subject {Subject}, ResponseType: {ResponseType}", 
+            subject, typeof(TResponse).Name);
+
+        try
+        {
+            var emptyMessage = EmptyMessage.Create();
+
+            // Send empty request and receive UniversalMessage response
+            var response = await connection.RequestAsync<ProtobufEmpty, UniversalMessage>(subject, emptyMessage,
+                requestSerializer: serializerRegistry.GetSerializer<ProtobufEmpty>(),
+                replySerializer: serializerRegistry.GetDeserializer<UniversalMessage>());
+
+            // Convert response back to expected type
+            var result = UniversalProtobufConverter.FromUniversalMessage(response.Data, typeof(TResponse));
+            
+            _logger.LogDebug("EnhancedProtobufSerializerAdapter: Successfully converted parameterless response to {ResponseType}", typeof(TResponse).Name);
+            return (TResponse)result!;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "EnhancedProtobufSerializerAdapter: Error in parameterless typed request for subject {Subject}", subject);
+            throw;
+        }
+    }
+
+    public async Task PublishAsync<TMessage>(
+        INatsConnection connection,
+        string subject,
+        TMessage message,
+        INatsSerializerRegistry serializerRegistry)
+    {
+        _logger.LogDebug("EnhancedProtobufSerializerAdapter: Publishing typed message to subject {Subject}, MessageType: {MessageType}", 
+            subject, typeof(TMessage).Name);
+
+        try
+        {
+            if (message == null)
+            {
+                var emptyMessage = EmptyMessage.Create();
+                await connection.PublishAsync(subject, emptyMessage,
+                    serializer: serializerRegistry.GetSerializer<ProtobufEmpty>());
+            }
+            else
+            {
+                var universalMessage = UniversalProtobufConverter.ToUniversalMessage(message);
+                await connection.PublishAsync(subject, universalMessage,
+                    serializer: serializerRegistry.GetSerializer<UniversalMessage>());
+            }
+            
+            _logger.LogDebug("EnhancedProtobufSerializerAdapter: Successfully published typed message to subject {Subject}", subject);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "EnhancedProtobufSerializerAdapter: Error publishing typed message to subject {Subject}", subject);
+            throw;
+        }
+    }
+
+    public bool CanHandleTypes(Type? requestType, Type? responseType)
+    {
+        // Check if we can handle the request type
+        if (requestType != null && !CanHandleType(requestType))
+        {
+            return false;
+        }
+
+        // Check if we can handle the response type
+        if (responseType != null && !CanHandleType(responseType))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    public TypedSerializationConfig GetTypedConfig(Type? requestType, Type? responseType, INatsSerializerRegistry serializerRegistry)
+    {
+        return new TypedSerializationConfig
+        {
+            RequestSerializer = serializerRegistry.GetSerializer<UniversalMessage>(),
+            ResponseDeserializer = serializerRegistry.GetDeserializer<UniversalMessage>(),
+            ActualRequestType = typeof(UniversalMessage),
+            ActualResponseType = typeof(UniversalMessage),
+            RequestTransformer = obj => UniversalProtobufConverter.ToUniversalMessage(obj),
+            ResponseTransformer = (obj, type) => UniversalProtobufConverter.FromUniversalMessage((UniversalMessage)obj!, type)
+        };
+    }
+
+    #endregion
+
+    #region Private Helper Methods
+
+    private bool CanHandleType(Type type)
+    {
+        // RequestDto<T> is not supported
         if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(RequestDto<>))
         {
             return false;
@@ -204,48 +271,18 @@ public class ProtobufSerializerAdapter : ISerializerAdapter
             return false;
         }
 
-        // Generally, Protobuf works best with concrete protobuf message types
-        // For now, we'll be permissive but log warnings
-        return true;
+        // Check if it's a serializable type
+        return IsSerializableType(type);
     }
 
-    /// <summary>
-    /// Checks if a type is directly compatible with Protobuf serialization.
-    /// With the generic JSON-in-Protobuf approach, most types can be handled via JSON serialization.
-    /// </summary>
-    /// <param name="type">The type to check</param>
-    /// <returns>True if the type is directly compatible with Protobuf</returns>
-    private bool IsProtobufCompatibleType(Type type)
+    private bool IsSerializableType(Type type)
     {
-        // Null types are not compatible
-        if (type == null)
+        // Exclude delegates and other non-serializable types
+        if (typeof(Delegate).IsAssignableFrom(type))
         {
             return false;
         }
 
-        // ProtobufEmpty is always compatible
-        if (type == typeof(ProtobufEmpty))
-        {
-            return true;
-        }
-
-        // Check for Google.Protobuf.IMessage interface (generated Protobuf types)
-        if (type.GetInterfaces().Any(i => 
-            i.FullName == "Google.Protobuf.IMessage" || 
-            i.Name == "IMessage" && i.Namespace?.Contains("Protobuf") == true))
-        {
-            return true;
-        }
-
-        // Primitive types work well
-        if (type.IsPrimitive || type == typeof(string) || type == typeof(byte[]) || 
-            type == typeof(decimal) || type == typeof(DateTime) || type == typeof(Guid))
-        {
-            return true;
-        }
-
-        // With JSON-in-Protobuf, we can handle most .NET types
-        // Only exclude types that are fundamentally non-serializable
         if (type.IsGenericType)
         {
             var genericDefinition = type.GetGenericTypeDefinition();
@@ -258,107 +295,49 @@ public class ProtobufSerializerAdapter : ISerializerAdapter
             }
         }
 
-        // Exclude delegates and other non-serializable types
-        if (typeof(Delegate).IsAssignableFrom(type))
-        {
-            return false;
-        }
-
-        // With our generic approach, most other types can be handled via JSON
-        // so we return true and let the JSON serialization handle it
         return true;
     }
 
-    /// <summary>
-    /// Gets a deserializer for the specified type using reflection
-    /// </summary>
-    private object GetDeserializer(INatsSerializerRegistry serializerRegistry, Type type)
+    private async Task<object?> SendParameterlessRequestInternalAsync(
+        INatsConnection connection,
+        string subject,
+        Type? expectedResponseType,
+        INatsSerializerRegistry serializerRegistry)
     {
-        var method = typeof(INatsSerializerRegistry).GetMethod("GetDeserializer", Type.EmptyTypes);
-        if (method != null)
+        var emptyMessage = EmptyMessage.Create();
+
+        var response = await connection.RequestAsync<ProtobufEmpty, UniversalMessage>(subject, emptyMessage,
+            requestSerializer: serializerRegistry.GetSerializer<ProtobufEmpty>(),
+            replySerializer: serializerRegistry.GetDeserializer<UniversalMessage>());
+
+        if (response.Data != null && expectedResponseType != null)
         {
-            var genericMethod = method.MakeGenericMethod(type);
-            return genericMethod.Invoke(serializerRegistry, null)!;
+            return UniversalProtobufConverter.FromUniversalMessage(response.Data, expectedResponseType);
         }
-        
-        // Fallback to object deserializer
-        return serializerRegistry.GetDeserializer<object>();
+
+        return response.Data;
     }
 
-    /// <summary>
-    /// Deserializes a generic response (either direct object or JSON-in-Protobuf) to the expected .NET type
-    /// </summary>
-    private object? DeserializeGenericResponse(object responseData, Type expectedType)
+    private async Task<object?> SendTypedRequestInternalAsync(
+        INatsConnection connection,
+        string subject,
+        object request,
+        Type? expectedResponseType,
+        INatsSerializerRegistry serializerRegistry)
     {
-        try
+        var requestMessage = UniversalProtobufConverter.ToUniversalMessage(request);
+
+        var response = await connection.RequestAsync<UniversalMessage, UniversalMessage>(subject, requestMessage,
+            requestSerializer: serializerRegistry.GetSerializer<UniversalMessage>(),
+            replySerializer: serializerRegistry.GetDeserializer<UniversalMessage>());
+
+        if (response.Data != null && expectedResponseType != null)
         {
-            _logger.LogDebug("ProtobufSerializerAdapter: Deserializing response data {DataType} to {ExpectedType}", 
-                responseData.GetType().Name, expectedType.Name);
-
-            // Case 1: Response is already the expected type (direct Protobuf message)
-            if (expectedType.IsAssignableFrom(responseData.GetType()))
-            {
-                return responseData;
-            }
-
-            // Case 2: Response is a string (likely JSON)
-            if (responseData is string jsonString)
-            {
-                _logger.LogDebug("ProtobufSerializerAdapter: Deserializing JSON string to {ExpectedType}", expectedType.Name);
-                return JsonSerializer.Deserialize(jsonString, expectedType, GetJsonSerializerOptions());
-            }
-
-            // Case 3: Response has JSON data property (GenericResponse with JsonPayload)
-            var jsonDataProperty = responseData.GetType().GetProperty("JsonData") ?? 
-                                   responseData.GetType().GetProperty("json_data");
-            
-            if (jsonDataProperty != null)
-            {
-                var jsonData = jsonDataProperty.GetValue(responseData) as string;
-                if (!string.IsNullOrEmpty(jsonData))
-                {
-                    _logger.LogDebug("ProtobufSerializerAdapter: Deserializing JSON payload to {ExpectedType}", expectedType.Name);
-                    return JsonSerializer.Deserialize(jsonData, expectedType, GetJsonSerializerOptions());
-                }
-            }
-
-            // Case 4: Try to serialize response to JSON and then deserialize to expected type
-            // This handles cases where Protobuf gives us a structured object that needs conversion
-            _logger.LogDebug("ProtobufSerializerAdapter: Converting response via JSON to {ExpectedType}", expectedType.Name);
-            var intermediateJson = JsonSerializer.Serialize(responseData, GetJsonSerializerOptions());
-            return JsonSerializer.Deserialize(intermediateJson, expectedType, GetJsonSerializerOptions());
+            return UniversalProtobufConverter.FromUniversalMessage(response.Data, expectedResponseType);
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "ProtobufSerializerAdapter: Failed to deserialize response to {ExpectedType}", expectedType.Name);
-            
-            // Fallback: return the raw response data
-            return responseData;
-        }
+
+        return response.Data;
     }
 
-    /// <summary>
-    /// Gets JSON serializer options for consistent serialization
-    /// </summary>
-    private JsonSerializerOptions GetJsonSerializerOptions()
-    {
-        return new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            PropertyNameCaseInsensitive = true,
-            WriteIndented = false,
-            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
-        };
-    }
-
-    public SerializerEndpointConfig GetEndpointConfig(INatsSerializerRegistry serializerRegistry)
-    {
-        return new SerializerEndpointConfig
-        {
-            ParameterlessHandlerType = typeof(ProtobufEmpty),
-            RequiresAuditWrapperHandling = true, // Protobuf needs special handling for audit wrappers
-            RequestSerializer = serializerRegistry.GetSerializer<ProtobufEmpty>(),
-            ResponseDeserializer = serializerRegistry.GetDeserializer<ProtobufEmpty>()
-        };
-    }
+    #endregion
 }
