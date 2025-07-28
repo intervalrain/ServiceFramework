@@ -68,7 +68,8 @@ public class NatsProxyActionFilter : IAsyncActionFilter
 
             // Extract and wrap request data using specialized services
             var requestData = _requestDataExtractor.ExtractRequestData(context);
-            wrappedRequest = _auditHandler.WrapRequestWithAudit(requestData, context.HttpContext);
+            wrappedRequest = requestData;
+            // wrappedRequest = _auditHandler.WrapRequestWithAudit(requestData, context.HttpContext);
 
             // Get the appropriate handler for this convention mode
             var handler = _handlerFactory.GetHandler(metadata.ConventionMode);

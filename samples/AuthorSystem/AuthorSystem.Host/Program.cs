@@ -1,4 +1,7 @@
 using System.Reflection;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 using AuthorSystem.Application.Mappings;
 using AuthorSystem.Application.Services;
@@ -88,6 +91,23 @@ public class Program
 
             builder.Services.AddAutoMapper(typeof(AuthorMappingProfile));
 
+            // Configure JSON serializer to handle problematic types
+            builder.Services.ConfigureHttpJsonOptions(options =>
+            {
+                options.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+                options.SerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+                options.SerializerOptions.TypeInfoResolver = new DefaultJsonTypeInfoResolver();
+            });
+
+            builder.Services.Configure<Microsoft.AspNetCore.Mvc.JsonOptions>(options =>
+            {
+                options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
+                options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+                
+                // Add type info resolver to handle problematic types
+                options.JsonSerializerOptions.TypeInfoResolverChain.Insert(0, new SafeJsonTypeInfoResolver());
+            });
+
             var app = builder.Build();
 
             // Enable Swagger in all environments for demo purposes
@@ -118,5 +138,75 @@ public class Program
         {
             Log.CloseAndFlush();
         }
+    }
+}
+
+/// <summary>
+/// Safe JSON type info resolver that handles problematic types like System.Text.Encoding
+/// </summary>
+public class SafeJsonTypeInfoResolver : IJsonTypeInfoResolver
+{
+    public JsonTypeInfo? GetTypeInfo(Type type, JsonSerializerOptions options)
+    {
+        // Skip problematic types that contain unserializable properties
+        if (IsProblematicType(type))
+        {
+            return null; // Return null to skip serialization of this type
+        }
+
+        // For types that contain problematic properties, create custom type info
+        if (ContainsProblematicProperties(type))
+        {
+            var typeInfo = JsonTypeInfo.CreateJsonTypeInfo(type, options);
+            
+            // Filter out problematic properties
+            if (typeInfo.Kind == JsonTypeInfoKind.Object)
+            {
+                var safeProperties = typeInfo.Properties
+                    .Where(prop => !IsProblematicPropertyType(prop.PropertyType))
+                    .ToList();
+                
+                typeInfo.Properties.Clear();
+                foreach (var prop in safeProperties)
+                {
+                    typeInfo.Properties.Add(prop);
+                }
+            }
+            
+            return typeInfo;
+        }
+
+        return null; // Let default resolver handle other types
+    }
+
+    private static bool IsProblematicType(Type type)
+    {
+        // Skip System.Text.Encoding and related types
+        return type == typeof(System.Text.Encoding) ||
+               type.IsSubclassOf(typeof(System.Text.Encoding)) ||
+               type.FullName?.StartsWith("System.Text.Encoding") == true ||
+               // Skip ReadOnlySpan and related types
+               (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(ReadOnlySpan<>)) ||
+               type.FullName?.Contains("ReadOnlySpan") == true;
+    }
+
+    private static bool ContainsProblematicProperties(Type type)
+    {
+        try
+        {
+            var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+            return properties.Any(prop => IsProblematicPropertyType(prop.PropertyType));
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool IsProblematicPropertyType(Type propertyType)
+    {
+        return IsProblematicType(propertyType) ||
+               propertyType.Name.Contains("Encoding") ||
+               propertyType.Name.Contains("ReadOnlySpan");
     }
 }

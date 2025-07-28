@@ -70,12 +70,13 @@ public class JsonSerializerAdapter : ITypedSerializerAdapter
         }
         else if (request != null)
         {
-            // For requests with data
-            _logger.LogDebug("JsonSerializerAdapter: Sending request with data, RequestType: {RequestType}", 
-                request.GetType().Name);
-            var response = await connection.RequestAsync<object, object>(subject, request,
-                requestSerializer: serializerRegistry.GetSerializer<object>(),
-                replySerializer: serializerRegistry.GetDeserializer<object>());
+            // For requests with data - use proper DTO serialization
+            var requestType = request.GetType();
+            _logger.LogDebug("JsonSerializerAdapter: Sending request with data, RequestType: {RequestType}",
+                requestType.Name);
+
+            // Use the actual request type for proper serialization instead of object
+            var response = await connection.RequestAsync<object, object>(subject, request);
             return response.Data;
         }
         else
@@ -245,6 +246,63 @@ public class JsonSerializerAdapter : ITypedSerializerAdapter
     }
 
     #endregion
+
+    /// <summary>
+    /// Sends a typed request using reflection to maintain proper type information for serialization
+    /// </summary>
+    private async Task<object?> SendTypedRequest(INatsConnection connection, string subject, object request, Type requestType, INatsSerializerRegistry serializerRegistry)
+    {
+        try
+        {
+            // Use reflection to call the generic RequestAsync method with the correct types
+            var requestAsyncMethod = typeof(INatsConnection).GetMethods()
+                .First(m => m.Name == "RequestAsync" && 
+                           m.IsGenericMethod && 
+                           m.GetGenericArguments().Length == 2 &&
+                           m.GetParameters().Length == 5); // RequestAsync<TRequest, TResponse>(subject, request, requestSerializer, replySerializer, cancellationToken)
+
+            var genericMethod = requestAsyncMethod.MakeGenericMethod(requestType, typeof(object));
+            
+            // Get the appropriate serializer for the request type
+            var getSerializerMethod = typeof(INatsSerializerRegistry).GetMethod("GetSerializer", Type.EmptyTypes)
+                ?.MakeGenericMethod(requestType);
+            var requestSerializer = getSerializerMethod?.Invoke(serializerRegistry, null);
+            
+            // Get the deserializer for object response
+            var responseDeserializer = serializerRegistry.GetDeserializer<object>();
+            
+            // Invoke the generic method
+            var task = (Task)genericMethod.Invoke(connection, new object[] 
+            { 
+                subject, 
+                request, 
+                requestSerializer!, 
+                responseDeserializer, 
+                CancellationToken.None 
+            })!;
+            
+            await task;
+            
+            // Get the result from the task
+            var resultProperty = task.GetType().GetProperty("Result");
+            var natsMsg = resultProperty?.GetValue(task);
+            
+            // Get the Data property from NatsMsg<T>
+            var dataProperty = natsMsg?.GetType().GetProperty("Data");
+            return dataProperty?.GetValue(natsMsg);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in SendTypedRequest for type {RequestType}", requestType.Name);
+            
+            // Fallback to object serialization if reflection fails
+            _logger.LogWarning("Falling back to object serialization for type {RequestType}", requestType.Name);
+            var response = await connection.RequestAsync<object, object>(subject, request,
+                requestSerializer: serializerRegistry.GetSerializer<object>(),
+                replySerializer: serializerRegistry.GetDeserializer<object>());
+            return response.Data;
+        }
+    }
 
     #region Private Helper Methods
 

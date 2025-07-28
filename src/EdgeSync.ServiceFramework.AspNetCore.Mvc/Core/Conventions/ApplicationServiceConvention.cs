@@ -1,8 +1,6 @@
 using Microsoft.AspNetCore.Mvc.ApplicationModels;
-using Microsoft.Extensions.Options;
-using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
-using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Abstractions;
 using Microsoft.Extensions.Logging;
+using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Abstractions;
 
 namespace EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Conventions;
 

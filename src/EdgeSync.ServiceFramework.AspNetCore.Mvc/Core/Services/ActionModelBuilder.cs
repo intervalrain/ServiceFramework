@@ -11,7 +11,7 @@ using EdgeSync.ServiceFramework.Attributes;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Abstractions;
 using Microsoft.Extensions.Logging;
 
-namespace EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Services;
+namespace EdgeSync.ServiceFramework.Core.Services;
 
 /// <summary>
 /// Builds action models for NATS service methods following SRP
