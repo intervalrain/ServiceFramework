@@ -5,6 +5,7 @@ using EdgeSync.ServiceFramework.Abstractions.JetStream;
 using EdgeSync.ServiceFramework.Core;
 using EdgeSync.ServiceFramework.Core.JetStream;
 using EdgeSync.ServiceFramework.Core.KeyValueStore;
+using EdgeSync.ServiceFramework.Core.Serialization;
 using EdgeSync.ServiceFramework.KeyValueStore;
 
 using Microsoft.Extensions.Configuration;
@@ -13,6 +14,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 using NATS.Client.Core;
+using NATS.Client.Serializers.Json;
 
 namespace EdgeSync.ServiceFramework.DependencyInjection;
 
@@ -83,8 +85,14 @@ public static class ServiceCollectionExtensions
             var connectionName = connectionKvp.Key;
             var connectionSettings = connectionKvp.Value;
             
-            // Ensure connection has a serializer registry (use default if not set)
-            if (connectionSettings.NatsSerializerRegistry == null || 
+            // Apply serializer type from string configuration if not already set programmatically
+            if (!string.IsNullOrEmpty(connectionSettings.SerializerType) && 
+                connectionSettings.NatsSerializerRegistry == NatsDefaultSerializerRegistry.Default)
+            {
+                connectionSettings.NatsSerializerRegistry = GetSerializerRegistry(connectionSettings.SerializerType);
+            }
+            // Fallback to default serializer registry if still not set
+            else if (connectionSettings.NatsSerializerRegistry == null || 
                 connectionSettings.NatsSerializerRegistry == NatsDefaultSerializerRegistry.Default)
             {
                 connectionSettings.NatsSerializerRegistry = options.DefaultSerializerRegistry;
@@ -259,5 +267,19 @@ public static class ServiceCollectionExtensions
         }
         
         return services;
+    }
+    
+    /// <summary>
+    /// Gets the appropriate serializer registry based on the string name
+    /// </summary>
+    private static INatsSerializerRegistry GetSerializerRegistry(string serializerName)
+    {
+        return serializerName.ToLowerInvariant() switch
+        {
+            "json" => NatsJsonSerializerRegistry.Default,
+            "protobuf" => NatsProtobufSerializerRegistry.Default,
+            "default" => NatsDefaultSerializerRegistry.Default,
+            _ => NatsDefaultSerializerRegistry.Default,
+        };
     }
 }

@@ -71,23 +71,22 @@ public class Program
 
             var serviceName = "AuthorSystem API v1";
 
-            builder.Services.AddServiceFramework(options =>
-            {
-                options.DefaultConnection = "bus";
-                options.AddConnection("bus", Environment.GetEnvironmentVariable("MSG_BUS_URL") ?? "nats://localhost:4223")
-                    .WithCredFile(Environment.GetEnvironmentVariable("MSG_BUS_CREDFILE") ?? string.Empty)
-                    .WithSerializerRegistry(NatsJsonSerializerRegistry.Default);
+            builder.Services.AddServiceFramework(builder.Configuration);
+            // builder.Services.AddServiceFramework(options =>
+            // {
+            //     options.DefaultConnection = "bus";
+            //     options.AddConnection("bus", Environment.GetEnvironmentVariable("MSG_BUS_URL") ?? "nats://localhost:4223")
+            //         .WithCredFile(Environment.GetEnvironmentVariable("MSG_BUS_CREDFILE") ?? string.Empty)
+            //         .WithSerializerRegistry(NatsJsonSerializerRegistry.Default);
 
-                options.AddConnection("broker", Environment.GetEnvironmentVariable("MSG_BROKER_URL") ?? "nats://localhost:4222")
-                    .WithCredFile(Environment.GetEnvironmentVariable("MSG_BROKER_CREDFILE") ?? string.Empty)
-                    .WithSerializerRegistry(NatsProtobufSerializerRegistry.Default);
-            });
+            //     options.AddConnection("broker", Environment.GetEnvironmentVariable("MSG_BROKER_URL") ?? "nats://localhost:4222")
+            //         .WithCredFile(Environment.GetEnvironmentVariable("MSG_BROKER_CREDFILE") ?? string.Empty)
+            //         .WithSerializerRegistry(NatsProtobufSerializerRegistry.Default);
+            // });
             builder.Services.AddAutoConvention();
 
             builder.Services.AddSingleton<IAuthorRepository, InMemoryAuthorRepository>();
-            builder.Services.AddSingleton<IBookRepository, InMemoryBookRepository>();
             builder.Services.AddScoped<IAuthorAppService, AuthorAppService>();
-            builder.Services.AddScoped<IBookAppService, BookAppService>();
 
             builder.Services.AddAutoMapper(typeof(AuthorMappingProfile));
 

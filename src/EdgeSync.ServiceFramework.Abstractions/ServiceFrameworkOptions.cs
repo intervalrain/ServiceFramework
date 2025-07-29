@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using NATS.Client.Core;
 
 namespace EdgeSync.ServiceFramework.Abstractions;
@@ -86,7 +87,13 @@ public class NatsConnectionSettings
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
+    /// Serializer type name for JSON configuration (e.g., "json", "protobuf", "default")
+    /// </summary>
+    public string SerializerType { get; set; } = "json";
+
+    /// <summary>
     /// Serializer registry for the NATS connection
     /// </summary>
+    [JsonIgnore]
     public INatsSerializerRegistry NatsSerializerRegistry = NatsDefaultSerializerRegistry.Default;
 }
