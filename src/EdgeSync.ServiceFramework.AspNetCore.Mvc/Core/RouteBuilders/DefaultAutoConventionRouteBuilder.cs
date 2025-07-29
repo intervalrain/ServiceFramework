@@ -1,18 +1,22 @@
 using System.Reflection;
 
+using EdgeSync.ServiceFramework.Abstractions;
 
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Abstractions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Extensions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
 
 using Microsoft.AspNetCore.Mvc.ApplicationModels;
+using Microsoft.Extensions.Options;
 
-namespace EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.RouteBuilders;
+namespace EdgeSync.ServiceFramework.Core.RouteBuilders;
 
-public class DefaultAutoConventionRouteBuilder : IAutoConventionRouteBuilder
+public class DefaultAutoConventionRouteBuilder(IOptions<AutoConventionOptions> options)
+    : IAutoConventionRouteBuilder
 {
     private readonly string[] _prefixes = ["Nats, Application, App"];
     private readonly string[] _postfixes = ["ApplicationService, AppService", "NatsService", "Service"];
+    private readonly AutoConventionOptions _options = options.Value;
 
     public string GetServiceName(string serviceName)
     {
@@ -25,7 +29,7 @@ public class DefaultAutoConventionRouteBuilder : IAutoConventionRouteBuilder
 
     public string BuildControllerRoute(Type serviceType, string controllerName, AutoConventionSetting setting)
     {
-        var routePrefix = setting.RoutePrefix ?? "api";
+        var routePrefix = setting.RoutePrefix ?? _options.RoutePrefix;
         var routeName = controllerName.ToLowerInvariant();
         return $"/{routePrefix}/{routeName}";
     }
@@ -40,7 +44,7 @@ public class DefaultAutoConventionRouteBuilder : IAutoConventionRouteBuilder
             }
             else
             {
-                var routePrefix = setting.RoutePrefix ?? "api";
+                var routePrefix = setting.RoutePrefix ?? _options.RoutePrefix;
                 return $"{routePrefix}/{endpointName}";
             }
         }

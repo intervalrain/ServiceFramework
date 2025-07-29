@@ -6,5 +6,5 @@ public class AutoConventionSetting
 {
     public Assembly Assembly { get; set; } = null!;
     public Func<Type, bool>? TypePredicate { get; set; }
-    public string? RoutePrefix { get; set; } = "nats";
+    public string? RoutePrefix { get; set; }
 }
