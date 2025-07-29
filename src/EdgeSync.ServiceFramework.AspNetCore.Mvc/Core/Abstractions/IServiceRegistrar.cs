@@ -1,9 +1,9 @@
-using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
-using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Services;
 using NATS.Client.Core;
 using NATS.Client.Services;
+using EdgeSync.ServiceFramework.Core.Services;
+using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core;
 
-namespace EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Abstractions;
+namespace EdgeSync.ServiceFramework.Core.Abstractions;
 
 /// <summary>
 /// Interface for registering NATS services and handling service lifecycle

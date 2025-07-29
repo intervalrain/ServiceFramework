@@ -5,9 +5,13 @@ using EdgeSync.ServiceFramework.Abstractions.Attributes;
 using EdgeSync.ServiceFramework.Attributes;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Abstractions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
+using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Logging;
+using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core;
 using EdgeSync.ServiceFramework.Core.Logging;
 using EdgeSync.ServiceFramework.Core.Serializers;
+using EdgeSync.ServiceFramework.Core.Abstractions;
 using EdgeSync.ServiceFramework.Data;
+using EdgeSync.ServiceFramework.Utilities;
 using ErrorOr;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -16,9 +20,8 @@ using NATS.Client.Core;
 using NATS.Client.Services;
 using ProtobufEmpty = Google.Protobuf.WellKnownTypes.Empty;
 using EmptyMessage = Google.Protobuf.WellKnownTypes.Empty;
-using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Logging;
 
-namespace EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Services;
+namespace EdgeSync.ServiceFramework.Core.Services;
 
 /// <summary>
 /// Service registration implementation for NATS request-response services
@@ -251,9 +254,19 @@ public class ServiceRegistrar : IServiceRegistrar
                         isSuccess: false,
                         exception: m.Exception);
                     
-                    await m.ReplyErrorAsync(500, m.Exception.Message);
+                    var error = ExceptionToErrorMapper.MapToError(m.Exception.InnerException, $"{serviceType.Name}.{methodInfo.Method.Name}");
+                    var statusCode = MapToHttpStatusCode(error.Type, error.NumericType);
+
+                    await m.ReplyErrorAsync(statusCode, error.Description);
                     return;
                 }
+
+                // Initialize audit variables outside try block so they're accessible in catch
+                object? requestData = m.Data;
+                string? userId = null;
+                string? tenantId = null;
+                string? correlationId = null;
+                Guid reqSeqId = Guid.NewGuid();
 
                 try
                 {
@@ -263,11 +276,6 @@ public class ServiceRegistrar : IServiceRegistrar
                     if (serviceInstance != null)
                     {
                         // Extract request data and audit info when EnableAuditWrapper is true
-                        object? requestData = m.Data;
-                        string? userId = null;
-                        string? tenantId = null;
-                        string? correlationId = null;
-                        Guid reqSeqId = Guid.NewGuid();
 
                         if (_options.EnableAuditWrapper && m.Data != null)
                         {
@@ -338,7 +346,10 @@ public class ServiceRegistrar : IServiceRegistrar
                             isSuccess: false,
                             exception: serviceNotFoundEx);
                         
-                        await m.ReplyErrorAsync(500, $"Service instance not found for type {serviceType.Name}");
+                        var error = ExceptionToErrorMapper.MapToError(serviceNotFoundEx, $"{serviceType.Name}.{methodInfo.Method.Name}");
+                        var statusCode = MapToHttpStatusCode(error.Type, error.NumericType);
+
+                        await m.ReplyErrorAsync(statusCode, error.Description);
                     }
                 }
                 catch (Exception ex)
@@ -353,7 +364,13 @@ public class ServiceRegistrar : IServiceRegistrar
                         isSuccess: false,
                         exception: ex);
                     
-                    await m.ReplyErrorAsync(500, ex.Message);
+                    // Map exception to Error and get appropriate status code
+                    var error = ExceptionToErrorMapper.MapToError(ex, $"{serviceType.Name}.{methodInfo.Method.Name}");
+                    var statusCode = MapToHttpStatusCode(error.Type, error.NumericType);
+                    
+                    // Use ReplyErrorAsync with the correct signature: (statusCode, message)
+                    // The detailed error information will be available in the error description
+                    await m.ReplyErrorAsync(statusCode, error.Description);
                 }
             },
             cancellationToken: cancellationToken);
@@ -430,7 +447,10 @@ public class ServiceRegistrar : IServiceRegistrar
                 isSuccess: false,
                 exception: m.Exception);
             
-            await m.ReplyErrorAsync(500, m.Exception.Message);
+            var error = ExceptionToErrorMapper.MapToError(m.Exception.InnerException, $"{serviceType.Name}.{methodInfo.Method.Name}");
+            var statusCode = MapToHttpStatusCode(error.Type, error.NumericType);
+
+            await m.ReplyErrorAsync(statusCode, error.Description);
             return;
         }
 
@@ -522,7 +542,10 @@ public class ServiceRegistrar : IServiceRegistrar
                     isSuccess: false,
                     exception: serviceNotFoundEx);
                 
-                await m.ReplyErrorAsync(500, $"Service instance not found for type {serviceType.Name}");
+                var error = ExceptionToErrorMapper.MapToError(serviceNotFoundEx, $"{serviceType.Name}.{methodInfo.Method.Name}");
+                var statusCode = MapToHttpStatusCode(error.Type, error.NumericType);
+
+                await m.ReplyErrorAsync(statusCode, error.Description);
             }
         }
         catch (Exception ex)
@@ -535,9 +558,12 @@ public class ServiceRegistrar : IServiceRegistrar
                 auditInfo,
                 stopwatch.ElapsedMilliseconds,
                 isSuccess: false,
-                exception: ex);
+                exception: ex.InnerException);
             
-            await m.ReplyErrorAsync(500, ex.Message);
+            var error = ExceptionToErrorMapper.MapToError(ex.InnerException, $"{serviceType.Name}.{methodInfo.Method.Name}");
+            var statusCode = MapToHttpStatusCode(error.Type, error.NumericType);
+
+            await m.ReplyErrorAsync(statusCode, error.Description);
         }
     }
 
@@ -659,6 +685,23 @@ public class ServiceRegistrar : IServiceRegistrar
             return attr.CustomSubject;
         }
         return null;
+    }
+
+    /// <summary>
+    /// Maps ErrorOr.ErrorType to appropriate HTTP status codes
+    /// </summary>
+    private static int MapToHttpStatusCode(ErrorType errorType, int numericType)
+    {
+        return errorType switch
+        {
+            ErrorType.Failure => 500,        // Internal Server Error
+            ErrorType.Validation => 400,     // Bad Request
+            ErrorType.NotFound => 404,       // Not Found
+            ErrorType.Conflict => 409,       // Conflict
+            ErrorType.Unauthorized => 401,   // Unauthorized
+            ErrorType.Forbidden => 403,      // Forbidden
+            _ => numericType > 0 ? numericType : 500  // Use original numericType if valid, otherwise default to 500
+        };
     }
 
     private string GetChannelName(Type serviceType, NatsMethodInfo methodInfo)

@@ -41,8 +41,9 @@ public static class ServiceFrameworkLogger
         Exception? exception = null)
     {
         var sb = new StringBuilder();
-        
+
         // Header with operation type and icon
+        sb.AppendLine();
         sb.AppendLine($"{BoldText}{RequestResponseColor}{RequestResponseIcon} REQUEST/RESPONSE - {operation.ToUpper()}{ResetColor}");
         
         // Service information
