@@ -117,11 +117,7 @@ public class SerializerAdapterFactory : ISerializerAdapterFactory
         var jsonAdapter = new JsonSerializerAdapter(_serviceProvider.GetRequiredService<ILogger<JsonSerializerAdapter>>());
         _adapters.Add(jsonAdapter);
 
-        // Register legacy Protobuf adapter for backward compatibility
-        var protobufAdapter = new ProtobufSerializerAdapter(
-            _serviceProvider.GetRequiredService<ILogger<ProtobufSerializerAdapter>>(),
-            _serviceProvider.GetRequiredService<ProtobufTypeMapper>());
-        _adapters.Add(protobufAdapter);
+        // TODO: Register legacy Protobuf adapter for backward compatibility        
 
         _logger.LogInformation("Registered built-in serializer adapters: JSON (Enhanced), Protobuf (Enhanced), Protobuf (Legacy)");
     }

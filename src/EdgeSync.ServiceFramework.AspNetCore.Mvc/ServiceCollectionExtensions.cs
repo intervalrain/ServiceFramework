@@ -22,6 +22,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 using Swashbuckle.AspNetCore.SwaggerGen;
+using EdgeSync.ServiceFramework.Core.Handlers;
 
 
 namespace EdgeSync.ServiceFramework.AspNetCore.Mvc;

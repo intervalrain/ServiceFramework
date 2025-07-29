@@ -1,21 +1,49 @@
+using System.Text.Json.Serialization;
+
+using EdgeSync.ServiceFramework.Data.Json;
+
 using ErrorOr;
 
 namespace EdgeSync.ServiceFramework.Data;
 
 public record ResponseDto<T>
 {
+    [JsonPropertyName("timestamp")]
     public ulong Timestamp { get; init; }
+
+    [JsonPropertyName("reqSeqId")]
     public Guid ReqSeqId { get; init; }
+
+    [JsonPropertyName("rspSeqId")]
     public Guid RspSeqId { get; init; }
+
+    [JsonPropertyName("data")]
     public T? Data { get; init; }
+
+    [JsonPropertyName("errors")]
+    [JsonConverter(typeof(ErrorListJsonConverter))]
     public List<Error> Errors { get; init; } = [];
+
+    [JsonPropertyName("message")]
     public string Message { get; init; } = string.Empty;
+
+    [JsonPropertyName("userId")]
     public string? UserId { get; init; }
+
+    [JsonPropertyName("tenantId")]
     public string? TenantId { get; init; }
+
+    [JsonPropertyName("correlationId")]
     public string? CorrelationId { get; init; }
 
+    [JsonPropertyName("isError")]
     public bool IsError => Errors.Any();
+
+    [JsonPropertyName("isSuccess")]
     public bool IsSuccess => !IsError;
+
+    [JsonPropertyName("firstError")]
+    [JsonConverter(typeof(ErrorJsonConverter))]
     public Error? FirstError => Errors.FirstOrDefault();
 
     protected ResponseDto(T? data, Guid reqSeqId)

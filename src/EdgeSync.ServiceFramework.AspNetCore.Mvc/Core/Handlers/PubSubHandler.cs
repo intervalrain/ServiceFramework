@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NATS.Client.Core;
 
-namespace EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Handlers;
+namespace EdgeSync.ServiceFramework.Core.Handlers;
 
 /// <summary>
 /// Handler for pub-sub convention modes in NATS proxy
@@ -46,9 +46,6 @@ public class PubSubHandler : IConventionModeHandler
                 
             _logger.LogDebug("PubSubHandler: NATS Publish completed. Subject: {Subject}, Mode: {Mode}",
                 metadata.Subject, metadata.ConventionMode);
-
-            // Log successful publish with audit info for monitoring
-            LogSuccessfulPublish(metadata, wrappedRequest);
 
             // Pub-sub operations typically return NoContent (204) status
             return new NoContentResult();
@@ -105,56 +102,4 @@ public class PubSubHandler : IConventionModeHandler
         }
     }
 
-    private void LogSuccessfulPublish(ActionContextMetadata metadata, object? wrappedRequest)
-    {
-        try
-        {
-            // Extract audit info from wrapped request for monitoring
-            var requestAuditInfo = ExtractAuditInfo(wrappedRequest);
-            
-            if (requestAuditInfo != null)
-            {
-                _logger.LogInformation("NATS message published successfully. Service: {ServiceName}.{MethodName}, Subject: {Subject}, Mode: {Mode}, ReqSeqId: {ReqSeqId}, RequestTimestamp: {RequestTimestamp}",
-                    metadata.ServiceName, metadata.MethodName, metadata.Subject, metadata.ConventionMode,
-                    requestAuditInfo.Value.ReqSeqId, requestAuditInfo.Value.Timestamp);
-            }
-            else
-            {
-                _logger.LogInformation("NATS message published successfully. Service: {ServiceName}.{MethodName}, Subject: {Subject}, Mode: {Mode}",
-                    metadata.ServiceName, metadata.MethodName, metadata.Subject, metadata.ConventionMode);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to log audit information for successful publish");
-        }
-    }
-
-    private (string ReqSeqId, string Timestamp)? ExtractAuditInfo(object? wrappedRequest)
-    {
-        if (wrappedRequest == null) return null;
-
-        try
-        {
-            var requestType = wrappedRequest.GetType();
-
-            // Check if it's a RequestDto<T>
-            if (requestType.IsGenericType && requestType.GetGenericTypeDefinition() == typeof(EdgeSync.ServiceFramework.Data.RequestDto<>))
-            {
-                var reqSeqIdProp = requestType.GetProperty("ReqSeqId");
-                var timestampProp = requestType.GetProperty("Timestamp");
-
-                var reqSeqId = reqSeqIdProp?.GetValue(wrappedRequest)?.ToString() ?? "N/A";
-                var timestamp = timestampProp?.GetValue(wrappedRequest)?.ToString() ?? "N/A";
-
-                return (reqSeqId, timestamp);
-            }
-        }
-        catch
-        {
-            // Ignore errors and return null
-        }
-
-        return null;
-    }
 }

@@ -17,13 +17,9 @@ public static class ServiceCollectionExtensions
     {
         // Register the factory as singleton since it caches adapters
         services.TryAddSingleton<ISerializerAdapterFactory, SerializerAdapterFactory>();
-        
-        // Register type mapper for Protobuf type conversions
-        services.TryAddSingleton<ProtobufTypeMapper>();
-        
+
         // Register individual adapters as transient since factory creates them
         services.TryAddTransient<JsonSerializerAdapter>();
-        services.TryAddTransient<ProtobufSerializerAdapter>();
         
         return services;
     }

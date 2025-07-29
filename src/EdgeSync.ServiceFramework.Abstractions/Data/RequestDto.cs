@@ -1,13 +1,28 @@
+using System.Text.Json.Serialization;
+
 namespace EdgeSync.ServiceFramework.Data;
 
 public record RequestDto<T>
 {
+    [JsonPropertyName("reqSeqId")]
     public Guid ReqSeqId { get; init; }
+
+    [JsonPropertyName("timestamp")]
     public ulong Timestamp { get; init; }
+
+    [JsonPropertyName("data")]
     public T Data { get; init; }
+
+    [JsonPropertyName("userId")]
     public string? UserId { get; init; }
+
+    [JsonPropertyName("tenantId")]
     public string? TenantId { get; init; }
+
+    [JsonPropertyName("correlationId")]
     public string? CorrelationId { get; init; }
+
+    [JsonPropertyName("metadata")]
     public Dictionary<string, string>? Metadata { get; init; }
 
     protected RequestDto(T data)

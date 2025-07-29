@@ -1,6 +1,5 @@
 using System.Reflection;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 
 using AuthorSystem.Application.Mappings;
@@ -9,10 +8,8 @@ using AuthorSystem.Domain.Repositories;
 using AuthorSystem.Infrastructure.Repositories;
 
 using EdgeSync.ServiceFramework.AspNetCore.Mvc;
-using EdgeSync.ServiceFramework.Core.Serialization;
+using EdgeSync.ServiceFramework.Data.Json;
 using EdgeSync.ServiceFramework.DependencyInjection;
-
-using NATS.Client.Serializers.Json;
 
 using Serilog;
 using Serilog.Enrichers.CallerInfo;
@@ -44,9 +41,9 @@ public class Program
         try
         {
             Log.Information("Starting {ApplicationName}", assemblyNamePrefix);
-            
+
             var builder = WebApplication.CreateBuilder(args);
-            
+
             // Configure Serilog
             builder.Host.UseSerilog((context, services, loggerConfiguration) =>
             {
@@ -90,19 +87,16 @@ public class Program
 
             builder.Services.AddAutoMapper(typeof(AuthorMappingProfile));
 
-            // Configure JSON serializer to handle problematic types
+            // Configure JSON serialization with ServiceFramework standards
             builder.Services.ConfigureHttpJsonOptions(options =>
             {
-                options.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
-                options.SerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+                options.SerializerOptions.ConfigureForServiceFramework();
                 options.SerializerOptions.TypeInfoResolver = new DefaultJsonTypeInfoResolver();
             });
 
             builder.Services.Configure<Microsoft.AspNetCore.Mvc.JsonOptions>(options =>
             {
-                options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
-                options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
-                
+                options.JsonSerializerOptions.ConfigureForServiceFramework();
                 // Add type info resolver to handle problematic types
                 options.JsonSerializerOptions.TypeInfoResolverChain.Insert(0, new SafeJsonTypeInfoResolver());
             });
@@ -157,21 +151,21 @@ public class SafeJsonTypeInfoResolver : IJsonTypeInfoResolver
         if (ContainsProblematicProperties(type))
         {
             var typeInfo = JsonTypeInfo.CreateJsonTypeInfo(type, options);
-            
+
             // Filter out problematic properties
             if (typeInfo.Kind == JsonTypeInfoKind.Object)
             {
                 var safeProperties = typeInfo.Properties
                     .Where(prop => !IsProblematicPropertyType(prop.PropertyType))
                     .ToList();
-                
+
                 typeInfo.Properties.Clear();
                 foreach (var prop in safeProperties)
                 {
                     typeInfo.Properties.Add(prop);
                 }
             }
-            
+
             return typeInfo;
         }
 

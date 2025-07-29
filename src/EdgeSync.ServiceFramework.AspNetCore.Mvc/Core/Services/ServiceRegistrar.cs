@@ -1,9 +1,11 @@
+using System.Diagnostics;
 using System.Reflection;
 using EdgeSync.ServiceFramework.Abstractions;
 using EdgeSync.ServiceFramework.Abstractions.Attributes;
 using EdgeSync.ServiceFramework.Attributes;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Abstractions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
+using EdgeSync.ServiceFramework.Core.Logging;
 using EdgeSync.ServiceFramework.Core.Serializers;
 using EdgeSync.ServiceFramework.Data;
 using ErrorOr;
@@ -14,6 +16,7 @@ using NATS.Client.Core;
 using NATS.Client.Services;
 using ProtobufEmpty = Google.Protobuf.WellKnownTypes.Empty;
 using EmptyMessage = Google.Protobuf.WellKnownTypes.Empty;
+using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Logging;
 
 namespace EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Services;
 
@@ -232,9 +235,22 @@ public class ServiceRegistrar : IServiceRegistrar
             subject: subject,
             handler: async (NatsSvcMsg<T> m) =>
             {
+                var stopwatch = Stopwatch.StartNew();
+                var auditInfo = AuditInfoExtractor.ExtractFromRequest(m.Data);
+                
                 // Handle exceptions which may occur during message processing
                 if (m.Exception != null)
                 {
+                    stopwatch.Stop();
+                    _logger.LogServiceFrameworkRequestResponse(
+                        serviceType.Name,
+                        methodInfo.Method.Name, 
+                        subject ?? $"{serviceType.Name}.{methodInfo.Method.Name}",
+                        auditInfo,
+                        stopwatch.ElapsedMilliseconds,
+                        isSuccess: false,
+                        exception: m.Exception);
+                    
                     await m.ReplyErrorAsync(500, m.Exception.Message);
                     return;
                 }
@@ -299,16 +315,44 @@ public class ServiceRegistrar : IServiceRegistrar
                                 await ReplyWithAuditWrapper(m, result, reqSeqId, userId, tenantId, correlationId);
                             }
                         }
+                        
+                        stopwatch.Stop();
+                        _logger.LogServiceFrameworkRequestResponse(
+                            serviceType.Name,
+                            methodInfo.Method.Name,
+                            subject ?? $"{serviceType.Name}.{methodInfo.Method.Name}",
+                            auditInfo,
+                            stopwatch.ElapsedMilliseconds,
+                            isSuccess: true);
                     }
                     else
                     {
+                        stopwatch.Stop();
+                        var serviceNotFoundEx = new InvalidOperationException($"Service instance not found for type {serviceType.Name}");
+                        _logger.LogServiceFrameworkRequestResponse(
+                            serviceType.Name,
+                            methodInfo.Method.Name,
+                            subject ?? $"{serviceType.Name}.{methodInfo.Method.Name}",
+                            auditInfo,
+                            stopwatch.ElapsedMilliseconds,
+                            isSuccess: false,
+                            exception: serviceNotFoundEx);
+                        
                         await m.ReplyErrorAsync(500, $"Service instance not found for type {serviceType.Name}");
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error processing request-response for endpoint {EndpointName}: {Message}",
-                        endpointName, ex.Message);
+                    stopwatch.Stop();
+                    _logger.LogServiceFrameworkRequestResponse(
+                        serviceType.Name,
+                        methodInfo.Method.Name,
+                        subject ?? $"{serviceType.Name}.{methodInfo.Method.Name}",
+                        auditInfo,
+                        stopwatch.ElapsedMilliseconds,
+                        isSuccess: false,
+                        exception: ex);
+                    
                     await m.ReplyErrorAsync(500, ex.Message);
                 }
             },
@@ -346,7 +390,7 @@ public class ServiceRegistrar : IServiceRegistrar
                 subject: subject,
                 handler: async (NatsSvcMsg<ProtobufEmpty> m) =>
                 {
-                    await HandleParameterlessEndpoint(m, serviceType, methodInfo, endpointName, adapter, isEmptyMessage: true);
+                    await HandleParameterlessEndpoint(m, serviceType, methodInfo, endpointName, adapter, subject, isEmptyMessage: true);
                 },
                 cancellationToken: cancellationToken);
         }
@@ -359,7 +403,7 @@ public class ServiceRegistrar : IServiceRegistrar
                 subject: subject,
                 handler: async (NatsSvcMsg<object> m) =>
                 {
-                    await HandleParameterlessEndpoint(m, serviceType, methodInfo, endpointName, adapter, isEmptyMessage: false);
+                    await HandleParameterlessEndpoint(m, serviceType, methodInfo, endpointName, adapter, subject, isEmptyMessage: false);
                 },
                 cancellationToken: cancellationToken);
         }
@@ -368,11 +412,24 @@ public class ServiceRegistrar : IServiceRegistrar
             endpointName, methodInfo.Method.Name, serviceType.Name);
     }
 
-    private async Task HandleParameterlessEndpoint<T>(NatsSvcMsg<T> m, Type serviceType, NatsMethodInfo methodInfo, string endpointName, ISerializerAdapter adapter, bool isEmptyMessage) where T : class
+    private async Task HandleParameterlessEndpoint<T>(NatsSvcMsg<T> m, Type serviceType, NatsMethodInfo methodInfo, string endpointName, ISerializerAdapter adapter, string? subject, bool isEmptyMessage) where T : class
     {
+        var stopwatch = Stopwatch.StartNew();
+        var auditInfo = AuditInfoExtractor.ExtractFromRequest(m.Data);
+        
         // Handle exceptions which may occur during message processing
         if (m.Exception != null)
         {
+            stopwatch.Stop();
+            _logger.LogServiceFrameworkRequestResponse(
+                serviceType.Name,
+                methodInfo.Method.Name, 
+                subject ?? $"{serviceType.Name}.{methodInfo.Method.Name}",
+                auditInfo,
+                stopwatch.ElapsedMilliseconds,
+                isSuccess: false,
+                exception: m.Exception);
+            
             await m.ReplyErrorAsync(500, m.Exception.Message);
             return;
         }
@@ -442,16 +499,44 @@ public class ServiceRegistrar : IServiceRegistrar
                         await m.ReplyAsync(new EmptyMessage());
                     }
                 }
+                
+                stopwatch.Stop();
+                _logger.LogServiceFrameworkRequestResponse(
+                    serviceType.Name,
+                    methodInfo.Method.Name,
+                    subject ?? $"{serviceType.Name}.{methodInfo.Method.Name}",
+                    auditInfo,
+                    stopwatch.ElapsedMilliseconds,
+                    isSuccess: true);
             }
             else
             {
+                stopwatch.Stop();
+                var serviceNotFoundEx = new InvalidOperationException($"Service instance not found for type {serviceType.Name}");
+                _logger.LogServiceFrameworkRequestResponse(
+                    serviceType.Name,
+                    methodInfo.Method.Name,
+                    subject ?? $"{serviceType.Name}.{methodInfo.Method.Name}",
+                    auditInfo,
+                    stopwatch.ElapsedMilliseconds,
+                    isSuccess: false,
+                    exception: serviceNotFoundEx);
+                
                 await m.ReplyErrorAsync(500, $"Service instance not found for type {serviceType.Name}");
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing parameterless request-response for endpoint {EndpointName}: {Message}",
-                endpointName, ex.Message);
+            stopwatch.Stop();
+            _logger.LogServiceFrameworkRequestResponse(
+                serviceType.Name,
+                methodInfo.Method.Name,
+                subject ?? $"{serviceType.Name}.{methodInfo.Method.Name}",
+                auditInfo,
+                stopwatch.ElapsedMilliseconds,
+                isSuccess: false,
+                exception: ex);
+            
             await m.ReplyErrorAsync(500, ex.Message);
         }
     }

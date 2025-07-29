@@ -18,13 +18,9 @@
 
   <ItemGroup>
     <PackageReference Include="Google.Protobuf" />
-    <PackageReference Include="Grpc.Tools" PrivateAssets="All" />
     <PackageReference Include="ErrorOr" />
+    <PackageReference Include="Microsoft.AspNetCore.Http" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc" />
     <PackageReference Include="NATS.NET" />
   </ItemGroup>
-
-  <ItemGroup>
-    <Protobuf Include="Protos\common.proto" GrpcServices="None" />
-  </ItemGroup>
-
 </Project>

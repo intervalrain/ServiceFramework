@@ -57,9 +57,6 @@ public class NatsRequestResponseHandler : IConventionModeHandler
             _logger.LogDebug("NatsRequestResponseHandler: NATS Request/Response completed. Subject: {Subject}, Response: {Response}",
                 metadata.Subject, response?.ToString() ?? "null");
 
-            // Log successful request with audit info for monitoring
-            LogSuccessfulRequest(metadata, wrappedRequest, response);
-
             // Handle response based on UseExceptionHandler setting
             var autoConventionOptions = _serviceProvider.GetService<IOptions<AutoConventionOptions>>()?.Value;
             var useExceptionHandler = autoConventionOptions?.UseExceptionHandler == true;
@@ -104,29 +101,6 @@ public class NatsRequestResponseHandler : IConventionModeHandler
         }
     }
 
-    private void LogSuccessfulRequest(ActionContextMetadata metadata, object? wrappedRequest, object? response)
-    {
-        try
-        {
-            // Extract audit info from wrapped request
-            var requestAuditInfo = ExtractAuditInfo(wrappedRequest);
-            var responseAuditInfo = ExtractResponseAuditInfo(response);
-            
-            if (responseAuditInfo != null)
-            {
-                _logger.LogInformation("NATS request completed successfully. Service: {ServiceName}.{MethodName}, Subject: {Subject}, ReqSeqId: {ReqSeqId}, RspSeqId: {RspSeqId}, RequestTimestamp: {RequestTimestamp}, ResponseTimestamp: {ResponseTimestamp}",
-                    metadata.ServiceName, metadata.MethodName, metadata.Subject,
-                    requestAuditInfo?.ReqSeqId ?? responseAuditInfo.Value.ReqSeqId,
-                    responseAuditInfo.Value.RspSeqId,
-                    requestAuditInfo?.Timestamp ?? "N/A",
-                    responseAuditInfo.Value.Timestamp);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to log audit information for successful request");
-        }
-    }
 
     private Type? GetExpectedResponseType(MethodInfo? originalMethod)
     {
@@ -160,61 +134,4 @@ public class NatsRequestResponseHandler : IConventionModeHandler
         return returnType;
     }
 
-    private (string ReqSeqId, string Timestamp)? ExtractAuditInfo(object? wrappedRequest)
-    {
-        if (wrappedRequest == null) return null;
-
-        try
-        {
-            var requestType = wrappedRequest.GetType();
-
-            // Check if it's a RequestDto<T>
-            if (requestType.IsGenericType && requestType.GetGenericTypeDefinition() == typeof(EdgeSync.ServiceFramework.Data.RequestDto<>))
-            {
-                var reqSeqIdProp = requestType.GetProperty("ReqSeqId");
-                var timestampProp = requestType.GetProperty("Timestamp");
-
-                var reqSeqId = reqSeqIdProp?.GetValue(wrappedRequest)?.ToString() ?? "N/A";
-                var timestamp = timestampProp?.GetValue(wrappedRequest)?.ToString() ?? "N/A";
-
-                return (reqSeqId, timestamp);
-            }
-        }
-        catch
-        {
-            // Ignore errors and return null
-        }
-
-        return null;
-    }
-
-    private (string ReqSeqId, string RspSeqId, string Timestamp)? ExtractResponseAuditInfo(object? response)
-    {
-        if (response == null) return null;
-
-        try
-        {
-            var responseType = response.GetType();
-
-            // Check if it's a ResponseDto<T>
-            if (responseType.IsGenericType && responseType.GetGenericTypeDefinition() == typeof(Data.ResponseDto<>))
-            {
-                var reqSeqIdProp = responseType.GetProperty("ReqSeqId");
-                var rspSeqIdProp = responseType.GetProperty("RspSeqId");
-                var timestampProp = responseType.GetProperty("Timestamp");
-
-                var reqSeqId = reqSeqIdProp?.GetValue(response)?.ToString() ?? "N/A";
-                var rspSeqId = rspSeqIdProp?.GetValue(response)?.ToString() ?? "N/A";
-                var timestamp = timestampProp?.GetValue(response)?.ToString() ?? "N/A";
-
-                return (reqSeqId, rspSeqId, timestamp);
-            }
-        }
-        catch
-        {
-            // Ignore errors and return null
-        }
-
-        return null;
-    }
 }
