@@ -4,9 +4,9 @@ using System.Text.Json;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Abstractions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Abstractions;
+using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Services;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Conventions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Decisions;
-using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Services;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Subscriptions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.SwaggerGen;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Handlers;
@@ -24,6 +24,8 @@ using Microsoft.Extensions.Options;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using EdgeSync.ServiceFramework.Core.Handlers;
 using EdgeSync.ServiceFramework.Core.Controllers;
+using EdgeSync.ServiceFramework.Core.Subscriptions;
+using EdgeSync.ServiceFramework.Core;
 
 
 namespace EdgeSync.ServiceFramework;
@@ -205,6 +207,9 @@ public static class ServiceCollectionExtensions
 
     private static IServiceCollection AddSubscriptionHandlers(this IServiceCollection services)
     {
+        // Register message type resolver
+        services.AddSingleton<IMessageTypeResolver, MessageTypeResolver>();
+        
         // Register all subscription handlers
         services.AddSingleton<ISubscriptionHandler, RequestResponseSubscriptionHandler>();
         services.AddSingleton<ISubscriptionHandler, PubSubPushClassicSubscriptionHandler>();

@@ -55,7 +55,7 @@ public class ServiceRegistrar : IServiceRegistrar
     }
 
     public async Task<ServiceRegistrationResult> RegisterRequestResponseServicesAsync(
-        List<(Type ServiceType, List<NatsMethodInfo> Methods)> reqrspServices, 
+        List<(Type ServiceType, List<NatsMethodInfo> Methods)> reqrspServices,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Starting registration of {ServiceCount} request-response services", reqrspServices.Count);
@@ -83,7 +83,7 @@ public class ServiceRegistrar : IServiceRegistrar
                     var connection = await _connectionResolver.GetConnectionAsync(channelName);
                     if (connection == null)
                     {
-                        _logger.LogWarning("Cannot register service {ServiceName} - connection unavailable for channel {ChannelName}", 
+                        _logger.LogWarning("Cannot register service {ServiceName} - connection unavailable for channel {ChannelName}",
                             serviceName, channelName);
                         result.FailedServices.Add((serviceType, groupMethods, $"Connection unavailable for channel {channelName}"));
                         continue;
@@ -93,7 +93,7 @@ public class ServiceRegistrar : IServiceRegistrar
                     {
                         var svcServer = await CreateSvcServer(serviceName, groupMethods, connection, cancellationToken);
                         await SetupRequestResponseServiceGroup(connection, svcServer, serviceType, serviceName, groupMethods, cancellationToken);
-                        
+
                         result.RegisteredServices.Add((serviceType, groupMethods, svcServer));
                         _logger.LogInformation("Registered request-response service '{ServiceName}' with {MethodCount} methods during startup",
                             serviceName, groupMethods.Count);
@@ -137,7 +137,9 @@ public class ServiceRegistrar : IServiceRegistrar
         // Create service configuration using the service info
         var config = new NatsSvcConfig(serviceInfo.ServiceName, serviceInfo.ServiceVersion)
         {
-            QueueGroup = serviceInfo.QueueGroup
+            QueueGroup = serviceInfo.QueueGroup,
+            Description = serviceInfo.Description,
+            Metadata = serviceInfo.Metadata
         };
 
         // Add service to context
@@ -201,10 +203,10 @@ public class ServiceRegistrar : IServiceRegistrar
             {
                 var serviceName = serviceServer.GetInfo().Name ?? "Unknown";
                 _logger.LogDebug("Stopping NATS service server: {ServiceName}", serviceName);
-                
+
                 await serviceServer.StopAsync(cancellationToken);
                 await serviceServer.DisposeAsync();
-                
+
                 result.StoppedServices.Add(serviceName);
             }
             catch (Exception ex)
@@ -233,27 +235,28 @@ public class ServiceRegistrar : IServiceRegistrar
         var subject = GetSubject(methodInfo);
 
         await svcServer.AddEndpointAsync(
-            name: endpointName,
+        name: endpointName,
             serializer: serializerRegistry.GetDeserializer<T>(),
             subject: subject,
             handler: async (NatsSvcMsg<T> m) =>
             {
                 var stopwatch = Stopwatch.StartNew();
-                var auditInfo = AuditInfoExtractor.ExtractFromRequest(m.Data);
-                
+                var IsRequestDto = AuditInfoExtractor.ExtractFromRequest(m.Data, out var auditInfo);
+
                 // Handle exceptions which may occur during message processing
                 if (m.Exception != null)
                 {
                     stopwatch.Stop();
                     _logger.LogServiceFrameworkRequestResponse(
                         serviceType.Name,
-                        methodInfo.Method.Name, 
+                        methodInfo.Method.Name,
                         subject ?? $"{serviceType.Name}.{methodInfo.Method.Name}",
                         auditInfo,
                         stopwatch.ElapsedMilliseconds,
                         isSuccess: false,
-                        exception: m.Exception);
-                    
+                        exception: m.Exception,
+                        input: m.Data);
+
                     var error = ExceptionToErrorMapper.MapToError(m.Exception.InnerException, $"{serviceType.Name}.{methodInfo.Method.Name}");
                     var statusCode = MapToHttpStatusCode(error.Type, error.NumericType);
 
@@ -263,6 +266,7 @@ public class ServiceRegistrar : IServiceRegistrar
 
                 // Initialize audit variables outside try block so they're accessible in catch
                 object? requestData = m.Data;
+                string? issuer = null;
                 string? userId = null;
                 string? tenantId = null;
                 string? correlationId = null;
@@ -275,26 +279,13 @@ public class ServiceRegistrar : IServiceRegistrar
 
                     if (serviceInstance != null)
                     {
-                        // Extract request data and audit info when EnableAuditWrapper is true
-
-                        if (_options.EnableAuditWrapper && m.Data != null)
+                        if (IsRequestDto && auditInfo != null)
                         {
-                            var dataType = m.Data.GetType();
-                            if (dataType.IsGenericType && dataType.GetGenericTypeDefinition() == typeof(RequestDto<>))
-                            {
-                                // Extract audit info from RequestDto
-                                var reqSeqIdProp = dataType.GetProperty("ReqSeqId");
-                                var userIdProp = dataType.GetProperty("UserId");
-                                var tenantIdProp = dataType.GetProperty("TenantId");
-                                var correlationIdProp = dataType.GetProperty("CorrelationId");
-                                var dataProp = dataType.GetProperty("Data");
-
-                                reqSeqId = (Guid)(reqSeqIdProp?.GetValue(m.Data) ?? reqSeqId);
-                                userId = userIdProp?.GetValue(m.Data) as string;
-                                tenantId = tenantIdProp?.GetValue(m.Data) as string;
-                                correlationId = correlationIdProp?.GetValue(m.Data) as string;
-                                requestData = dataProp?.GetValue(m.Data);
-                            }
+                            userId = auditInfo.UserId;
+                            tenantId = auditInfo.TenantId;
+                            correlationId = auditInfo.CorrelationId;
+                            issuer = auditInfo.Issuer;
+                            reqSeqId = Guid.TryParse(auditInfo?.ReqSeqId, out var val) ? val : Guid.NewGuid();
                         }
 
                         // Invoke the actual service method
@@ -312,8 +303,20 @@ public class ServiceRegistrar : IServiceRegistrar
                                 if (resultValue != null)
                                 {
                                     await ReplyWithAuditWrapper(m, resultValue, reqSeqId, userId, tenantId, correlationId);
+
+                                    stopwatch.Stop();
+                                    _logger.LogServiceFrameworkRequestResponse(
+                                        serviceType.Name,
+                                        methodInfo.Method.Name,
+                                        subject ?? $"{serviceType.Name}.{methodInfo.Method.Name}",
+                                        auditInfo,
+                                        stopwatch.ElapsedMilliseconds,
+                                        isSuccess: true,
+                                        input: requestData,
+                                        output: resultValue);
                                 }
                             }
+
                         }
                         else
                         {
@@ -322,16 +325,17 @@ public class ServiceRegistrar : IServiceRegistrar
                             {
                                 await ReplyWithAuditWrapper(m, result, reqSeqId, userId, tenantId, correlationId);
                             }
+                            stopwatch.Stop();
+                            _logger.LogServiceFrameworkRequestResponse(
+                                serviceType.Name,
+                                methodInfo.Method.Name,
+                                subject ?? $"{serviceType.Name}.{methodInfo.Method.Name}",
+                                auditInfo,
+                                stopwatch.ElapsedMilliseconds,
+                                isSuccess: true,
+                                input: requestData,
+                                output: result);
                         }
-                        
-                        stopwatch.Stop();
-                        _logger.LogServiceFrameworkRequestResponse(
-                            serviceType.Name,
-                            methodInfo.Method.Name,
-                            subject ?? $"{serviceType.Name}.{methodInfo.Method.Name}",
-                            auditInfo,
-                            stopwatch.ElapsedMilliseconds,
-                            isSuccess: true);
                     }
                     else
                     {
@@ -344,12 +348,14 @@ public class ServiceRegistrar : IServiceRegistrar
                             auditInfo,
                             stopwatch.ElapsedMilliseconds,
                             isSuccess: false,
-                            exception: serviceNotFoundEx);
-                        
-                        var error = ExceptionToErrorMapper.MapToError(serviceNotFoundEx, $"{serviceType.Name}.{methodInfo.Method.Name}");
-                        var statusCode = MapToHttpStatusCode(error.Type, error.NumericType);
+                            exception: serviceNotFoundEx,
+                            input: requestData);
 
-                        await m.ReplyErrorAsync(statusCode, error.Description);
+                        // var error = ExceptionToErrorMapper.MapToError(serviceNotFoundEx, $"{serviceType.Name}.{methodInfo.Method.Name}");
+                        // var statusCode = MapToHttpStatusCode(error.Type, error.NumericType);
+
+                        // await m.ReplyErrorAsync(statusCode, error.Description);
+                        throw serviceNotFoundEx;
                     }
                 }
                 catch (Exception ex)
@@ -362,15 +368,17 @@ public class ServiceRegistrar : IServiceRegistrar
                         auditInfo,
                         stopwatch.ElapsedMilliseconds,
                         isSuccess: false,
-                        exception: ex);
-                    
+                        exception: ex,
+                        input: requestData);
+
                     // Map exception to Error and get appropriate status code
                     var error = ExceptionToErrorMapper.MapToError(ex, $"{serviceType.Name}.{methodInfo.Method.Name}");
                     var statusCode = MapToHttpStatusCode(error.Type, error.NumericType);
-                    
+
                     // Use ReplyErrorAsync with the correct signature: (statusCode, message)
                     // The detailed error information will be available in the error description
-                    await m.ReplyErrorAsync(statusCode, error.Description);
+                    await m.ReplyErrorAsync(statusCode, error.Description, error);
+                    // throw new NatsException(ex.Message, ex);
                 }
             },
             cancellationToken: cancellationToken);
@@ -387,17 +395,17 @@ public class ServiceRegistrar : IServiceRegistrar
         var channelName = GetChannelName(serviceType, methodInfo);
         var serializerRegistry = GetSerializerForConnection(channelName);
         var subject = GetSubject(methodInfo);
-        
+
         // Get the appropriate adapter for this serializer
         var adapter = _serializerAdapterFactory.GetAdapter(serializerRegistry);
         var endpointConfig = adapter.GetEndpointConfig(serializerRegistry);
-        
-        _logger.LogDebug("Using serializer adapter: {AdapterType} for endpoint: {EndpointName}", 
+
+        _logger.LogDebug("Using serializer adapter: {AdapterType} for endpoint: {EndpointName}",
             adapter.GetType().Name, endpointName);
 
         // Use the adapter's configuration to determine the handler type
         var handlerType = endpointConfig.ParameterlessHandlerType;
-        
+
         if (handlerType == typeof(ProtobufEmpty))
         {
             // Use Empty message for serializers that require it (like Protobuf)
@@ -432,21 +440,22 @@ public class ServiceRegistrar : IServiceRegistrar
     private async Task HandleParameterlessEndpoint<T>(NatsSvcMsg<T> m, Type serviceType, NatsMethodInfo methodInfo, string endpointName, ISerializerAdapter adapter, string? subject, bool isEmptyMessage) where T : class
     {
         var stopwatch = Stopwatch.StartNew();
-        var auditInfo = AuditInfoExtractor.ExtractFromRequest(m.Data);
-        
+        var isRequestDto = AuditInfoExtractor.ExtractFromRequest(m.Data, out var auditInfo);
+
         // Handle exceptions which may occur during message processing
         if (m.Exception != null)
         {
             stopwatch.Stop();
             _logger.LogServiceFrameworkRequestResponse(
                 serviceType.Name,
-                methodInfo.Method.Name, 
+                methodInfo.Method.Name,
                 subject ?? $"{serviceType.Name}.{methodInfo.Method.Name}",
                 auditInfo,
                 stopwatch.ElapsedMilliseconds,
                 isSuccess: false,
-                exception: m.Exception);
-            
+                exception: m.Exception,
+                input: m.Data);
+
             var error = ExceptionToErrorMapper.MapToError(m.Exception.InnerException, $"{serviceType.Name}.{methodInfo.Method.Name}");
             var statusCode = MapToHttpStatusCode(error.Type, error.NumericType);
 
@@ -519,7 +528,7 @@ public class ServiceRegistrar : IServiceRegistrar
                         await m.ReplyAsync(new EmptyMessage());
                     }
                 }
-                
+
                 stopwatch.Stop();
                 _logger.LogServiceFrameworkRequestResponse(
                     serviceType.Name,
@@ -527,7 +536,9 @@ public class ServiceRegistrar : IServiceRegistrar
                     subject ?? $"{serviceType.Name}.{methodInfo.Method.Name}",
                     auditInfo,
                     stopwatch.ElapsedMilliseconds,
-                    isSuccess: true);
+                    isSuccess: true,
+                    input: m.Data,
+                    output: result);
             }
             else
             {
@@ -540,8 +551,9 @@ public class ServiceRegistrar : IServiceRegistrar
                     auditInfo,
                     stopwatch.ElapsedMilliseconds,
                     isSuccess: false,
-                    exception: serviceNotFoundEx);
-                
+                    exception: serviceNotFoundEx,
+                    input: m.Data);
+
                 var error = ExceptionToErrorMapper.MapToError(serviceNotFoundEx, $"{serviceType.Name}.{methodInfo.Method.Name}");
                 var statusCode = MapToHttpStatusCode(error.Type, error.NumericType);
 
@@ -558,8 +570,9 @@ public class ServiceRegistrar : IServiceRegistrar
                 auditInfo,
                 stopwatch.ElapsedMilliseconds,
                 isSuccess: false,
-                exception: ex.InnerException);
-            
+                exception: ex.InnerException,
+                input: m.Data);
+
             var error = ExceptionToErrorMapper.MapToError(ex.InnerException, $"{serviceType.Name}.{methodInfo.Method.Name}");
             var statusCode = MapToHttpStatusCode(error.Type, error.NumericType);
 
@@ -576,7 +589,7 @@ public class ServiceRegistrar : IServiceRegistrar
         }
 
         var responseType = response.GetType();
-        
+
         // Check if response is already wrapped in ResponseDto
         if (responseType.IsGenericType && responseType.GetGenericTypeDefinition() == typeof(ResponseDto<>))
         {
@@ -597,20 +610,20 @@ public class ServiceRegistrar : IServiceRegistrar
             // Handle ErrorOr<T> type
             var valueType = responseType.GetGenericArguments()[0];
             var responseDtoType = typeof(ResponseDto<>).MakeGenericType(valueType);
-            
+
             // Convert ErrorOr<T> to ResponseDto<T>
             var implicitOperator = responseDtoType.GetMethod("op_Implicit", [responseType]);
             if (implicitOperator != null)
             {
                 var responseDto = implicitOperator.Invoke(null, [response]);
-                
+
                 // Add audit info
                 var withAuditMethod = responseDtoType.GetMethod("WithAuditInfo");
                 if (withAuditMethod != null && responseDto != null)
                 {
                     responseDto = withAuditMethod.Invoke(responseDto, [userId, tenantId, correlationId]);
                 }
-                
+
                 await msg.ReplyAsync(responseDto!);
             }
             else
@@ -623,18 +636,18 @@ public class ServiceRegistrar : IServiceRegistrar
             // Wrap plain response in ResponseDto<T>
             var responseDtoType = typeof(ResponseDto<>).MakeGenericType(responseType);
             var successMethod = responseDtoType.GetMethod("Success", [responseType, typeof(Guid), typeof(string)]);
-            
+
             if (successMethod != null)
             {
                 var responseDto = successMethod.Invoke(null, [response, reqSeqId, null]);
-                
+
                 // Add audit info
                 var withAuditMethod = responseDtoType.GetMethod("WithAuditInfo");
                 if (withAuditMethod != null && responseDto != null)
                 {
                     responseDto = withAuditMethod.Invoke(responseDto, [userId, tenantId, correlationId]);
                 }
-                
+
                 await msg.ReplyAsync(responseDto!);
             }
             else
@@ -649,22 +662,22 @@ public class ServiceRegistrar : IServiceRegistrar
         // For Protobuf compatibility, always reply with EmptyMessage for parameterless methods
         // The actual response data is lost in this case, but it maintains compatibility
         await msg.ReplyAsync(new EmptyMessage());
-        
+
         // Log the original response for debugging
-        _logger.LogDebug("Protobuf parameterless method response (data lost due to EmptyMessage compatibility): {Response}", 
+        _logger.LogDebug("Protobuf parameterless method response (data lost due to EmptyMessage compatibility): {Response}",
             response?.ToString() ?? "null");
     }
 
     private INatsSerializerRegistry GetSerializerForConnection(string channelName)
     {
         // Find the connection settings for the specific channel
-        if (!string.IsNullOrEmpty(channelName) && 
+        if (!string.IsNullOrEmpty(channelName) &&
             _serviceFrameworkOptions.Connections.TryGetValue(channelName, out var connectionSettings) &&
             connectionSettings.NatsSerializerRegistry != null)
         {
             return connectionSettings.NatsSerializerRegistry;
         }
-        
+
         // Try default connection if channelName is not found or empty
         if (!string.IsNullOrEmpty(_serviceFrameworkOptions.DefaultConnection) &&
             _serviceFrameworkOptions.Connections.TryGetValue(_serviceFrameworkOptions.DefaultConnection, out var defaultSettings) &&
@@ -672,7 +685,7 @@ public class ServiceRegistrar : IServiceRegistrar
         {
             return defaultSettings.NatsSerializerRegistry;
         }
-        
+
         // Fallback to default serializer registry
         return _serviceFrameworkOptions.DefaultSerializerRegistry;
     }
@@ -726,21 +739,23 @@ public class ServiceRegistrar : IServiceRegistrar
         return _serviceFrameworkOptions.DefaultConnection ?? string.Empty;
     }
 
-    private (string QueueGroup, string ServiceName, string ServiceVersion) GetServiceInfo(Type serviceType, string fallbackServiceName)
+    private (string QueueGroup, string ServiceName, string ServiceVersion, string? Description, Dictionary<string, string> Metadata) GetServiceInfo(Type serviceType, string fallbackServiceName)
     {
         // Check for ServiceInfo attribute on the class
         var serviceInfo = serviceType.GetCustomAttribute<ServiceInfoAttribute>();
-        
+
         if (serviceInfo != null)
         {
             var serviceName = serviceInfo.ServiceName ?? fallbackServiceName;
             var queueGroup = serviceInfo.QueueGroup ?? serviceName + "_q";
             var serviceVersion = serviceInfo.ServiceVersion ?? "1.0.0";
-            return (queueGroup, serviceName, serviceVersion);
+            var description = serviceInfo.Description ?? string.Empty;
+            var metadata = serviceInfo.Metadata ?? [];
+            return (queueGroup, serviceName, serviceVersion, description, metadata);
         }
-        
+
         // Fallback to original logic
-        return (fallbackServiceName + "_q", fallbackServiceName, "1.0.0");
+        return (fallbackServiceName + "_q", fallbackServiceName, "1.0.0", string.Empty, []);
     }
 }
 

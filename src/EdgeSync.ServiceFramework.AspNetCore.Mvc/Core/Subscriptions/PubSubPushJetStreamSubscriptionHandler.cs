@@ -24,6 +24,12 @@ public class PubSubPushJetStreamSubscriptionHandler : BaseSubscriptionHandler
 
     public override async Task SubscribeAsync(INatsConnection connection, Type serviceType, NatsMethodInfo methodInfo, CancellationToken cancellationToken)
     {
+        // Use the generic subscription helper to resolve and invoke with correct type
+        await InvokeGenericSubscription(nameof(SubscribeWithTypeAsync), connection, serviceType, methodInfo, cancellationToken);
+    }
+
+    private async Task SubscribeWithTypeAsync<T>(INatsConnection connection, Type serviceType, NatsMethodInfo methodInfo, CancellationToken cancellationToken) where T : class
+    {
         var js = new NatsJSContext(connection);
         
         // Ensure Stream exists
@@ -40,16 +46,20 @@ public class PubSubPushJetStreamSubscriptionHandler : BaseSubscriptionHandler
                 AckPolicy = ConsumerConfigAckPolicy.Explicit
             });
 
-        Logger.LogInformation("JetStream Push subscription created for subject: {Subject}", methodInfo.SubjectName);
+        Logger.LogInformation("JetStream Push subscription created for subject: {Subject} with type: {MessageType}", 
+            methodInfo.SubjectName, typeof(T).Name);
 
-        // Use ConsumeAsync for continuous message consumption
-        await foreach (var msg in consumer.ConsumeAsync<string>().WithCancellation(cancellationToken))
+        // Get the correct deserializer for the message type
+        var deserializer = connection.Opts.SerializerRegistry.GetDeserializer<T>();
+
+        // Use ConsumeAsync with proper generic type and serializer
+        await foreach (var msg in consumer.ConsumeAsync<T>(deserializer).WithCancellation(cancellationToken))
         {
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await HandleJetStreamMessage(serviceType, methodInfo, msg, connection);
+                    await HandleJetStreamMessage<T>(serviceType, methodInfo, msg, connection);
                     await msg.AckAsync();
                 }
                 catch (Exception ex)

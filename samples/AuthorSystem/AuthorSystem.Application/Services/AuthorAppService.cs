@@ -12,7 +12,11 @@ using EdgeSync.ServiceFramework.Abstractions.Attributes;
 namespace AuthorSystem.Application.Services;
 
 [Channel("bus")]
-[ServiceInfo(ServiceName = "Author", ServiceVersion = "1.0.0", QueueGroup = "author-q")]
+[ServiceInfo(
+    ServiceName = "Author",
+    ServiceVersion = "1.0.0",
+    QueueGroup = "author-q",
+    Description = "A sample implementation of NATS service")]
 public class AuthorAppService : NatsService, IAuthorAppService
 {
     private readonly IAuthorRepository _authorRepository;

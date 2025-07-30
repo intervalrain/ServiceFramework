@@ -13,61 +13,36 @@ public record RequestDto<T>
     [JsonPropertyName("data")]
     public T Data { get; init; }
 
-    [JsonPropertyName("userId")]
-    public string? UserId { get; init; }
-
-    [JsonPropertyName("tenantId")]
-    public string? TenantId { get; init; }
-
-    [JsonPropertyName("correlationId")]
-    public string? CorrelationId { get; init; }
+    [JsonPropertyName("issuer")]
+    public string? Issuer { get; init; } = "Unknown";
 
     [JsonPropertyName("metadata")]
-    public Dictionary<string, string>? Metadata { get; init; }
+    public Dictionary<string, string>? Metadata { get; init; } = [];
 
-    protected RequestDto(T data)
+    [JsonConstructor]
+    [Obsolete("This constructor is for serialization only. Use Create methods instead.")]
+    public RequestDto()
+    {
+        ReqSeqId = Guid.NewGuid();
+        Timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+    }
+
+    protected RequestDto(T data, string? issuer)
     {
         ReqSeqId = Guid.NewGuid();
         Timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         Data = data;
+        Issuer = issuer;
     }
 
     public static RequestDto<T> Create(T data)
     {
-        return new RequestDto<T>(data);
+        return new RequestDto<T>(data, null);
     }
 
-    public static RequestDto<T> Create(T data, string? userId, string? tenantId)
+    public static RequestDto<T> Create(T data, string? issuer)
     {
-        return new RequestDto<T>(data)
-        {
-            UserId = userId,
-            TenantId = tenantId
-        };
-    }
-
-    public static RequestDto<T> Create(T data, string? userId, string? tenantId, string? correlationId)
-    {
-        return new RequestDto<T>(data)
-        {
-            UserId = userId,
-            TenantId = tenantId,
-            CorrelationId = correlationId
-        };
-    }
-
-    public RequestDto<T> WithAuditInfo(string? userId, string? tenantId)
-    {
-        return this with
-        {
-            UserId = userId,
-            TenantId = tenantId
-        };
-    }
-
-    public RequestDto<T> WithCorrelationId(string correlationId)
-    {
-        return this with { CorrelationId = correlationId };
+        return new RequestDto<T>(data, issuer);
     }
 
     public RequestDto<T> WithMetadata(Dictionary<string, string> metadata)
@@ -90,13 +65,8 @@ public record RequestDto<T>
 
 public static class RequestDtoExtensions
 {
-    public static RequestDto<T> ToRequestDto<T>(this T data, string? userId = null, string? tenantId = null)
+    public static RequestDto<T> ToRequestDto<T>(this T data, string? issuer )
     {
-        return RequestDto<T>.Create(data, userId, tenantId);
-    }
-
-    public static RequestDto<T> ToRequestDto<T>(this T data, string? userId, string? tenantId, string correlationId)
-    {
-        return RequestDto<T>.Create(data, userId, tenantId).WithCorrelationId(correlationId);
+        return RequestDto<T>.Create(data, issuer);
     }
 }

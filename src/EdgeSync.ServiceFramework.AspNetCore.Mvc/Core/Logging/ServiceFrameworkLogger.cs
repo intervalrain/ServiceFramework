@@ -1,5 +1,8 @@
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.Json;
 
 namespace EdgeSync.ServiceFramework.Core.Logging;
 
@@ -36,9 +39,15 @@ public static class ServiceFrameworkLogger
         string? correlationId,
         string? userId,
         string? tenantId,
+        string? issuer,
+        Dictionary<string, string>? metadata,
         long durationMs,
         bool isSuccess = true,
-        Exception? exception = null)
+        Exception? exception = null,
+        object? input = null,
+        object? output = null,
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0)
     {
         var sb = new StringBuilder();
 
@@ -51,6 +60,14 @@ public static class ServiceFrameworkLogger
         sb.AppendLine($"{InfoColor}├─ Subject: {subject}{ResetColor}");
         sb.AppendLine($"{InfoColor}├─ Duration: {durationMs}ms{ResetColor}");
         
+        // Source location information - for errors, show where the error occurred
+        if (!isSuccess && exception != null)
+        {
+            var stackFrame = GetErrorLocation(exception);
+            if (stackFrame != null)
+                sb.AppendLine($"{InfoColor}├─ Error Location: {stackFrame}{ResetColor}");
+        }
+        
         // Audit information
         if (!string.IsNullOrEmpty(reqSeqId))
             sb.AppendLine($"{InfoColor}├─ ReqSeqId: {reqSeqId}{ResetColor}");
@@ -60,6 +77,31 @@ public static class ServiceFrameworkLogger
             sb.AppendLine($"{InfoColor}├─ UserId: {userId}{ResetColor}");
         if (!string.IsNullOrEmpty(tenantId))
             sb.AppendLine($"{InfoColor}├─ TenantId: {tenantId}{ResetColor}");
+        if (!string.IsNullOrEmpty(issuer))
+            sb.AppendLine($"{InfoColor}├─ Issuer: {issuer}{ResetColor}");
+        if (metadata != null && metadata.Count > 0)
+        {
+            sb.AppendLine($"{InfoColor}├─ Metadata:{ResetColor}");
+            foreach (var kvp in metadata)
+            {
+                sb.AppendLine($"{InfoColor}│  ├─ {kvp.Key}: {kvp.Value}{ResetColor}");
+            }
+        }
+        
+        // Input/Output information for successful operations
+        if (isSuccess)
+        {
+            if (input != null)
+            {
+                sb.AppendLine($"{InfoColor}├─ Input:{ResetColor}");
+                sb.AppendLine($"{InfoColor}│  {FormatObject(input)}{ResetColor}");
+            }
+            if (output != null)
+            {
+                sb.AppendLine($"{InfoColor}├─ Output:{ResetColor}");
+                sb.AppendLine($"{InfoColor}│  {FormatObject(output)}{ResetColor}");
+            }
+        }
         
         // Status
         if (isSuccess)
@@ -89,9 +131,15 @@ public static class ServiceFrameworkLogger
         string? correlationId,
         string? userId,
         string? tenantId,
+        string? issuer,
+        Dictionary<string, string>? metadata,
         long durationMs,
         bool isSuccess = true,
-        Exception? exception = null)
+        Exception? exception = null,
+        object? input = null,
+        object? output = null,
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0)
     {
         var sb = new StringBuilder();
         
@@ -104,6 +152,14 @@ public static class ServiceFrameworkLogger
         sb.AppendLine($"{InfoColor}├─ Mode: {mode}{ResetColor}");
         sb.AppendLine($"{InfoColor}├─ Duration: {durationMs}ms{ResetColor}");
         
+        // Source location information - for errors, show where the error occurred
+        if (!isSuccess && exception != null)
+        {
+            var stackFrame = GetErrorLocation(exception);
+            if (stackFrame != null)
+                sb.AppendLine($"{InfoColor}├─ Error Location: {stackFrame}{ResetColor}");
+        }
+        
         // Audit information
         if (!string.IsNullOrEmpty(reqSeqId))
             sb.AppendLine($"{InfoColor}├─ ReqSeqId: {reqSeqId}{ResetColor}");
@@ -113,6 +169,31 @@ public static class ServiceFrameworkLogger
             sb.AppendLine($"{InfoColor}├─ UserId: {userId}{ResetColor}");
         if (!string.IsNullOrEmpty(tenantId))
             sb.AppendLine($"{InfoColor}├─ TenantId: {tenantId}{ResetColor}");
+        if (!string.IsNullOrEmpty(issuer))
+            sb.AppendLine($"{InfoColor}├─ Issuer: {issuer}{ResetColor}");
+        if (metadata != null && metadata.Count > 0)
+        {
+            sb.AppendLine($"{InfoColor}├─ Metadata:{ResetColor}");
+            foreach (var kvp in metadata)
+            {
+                sb.AppendLine($"{InfoColor}│  ├─ {kvp.Key}: {kvp.Value}{ResetColor}");
+            }
+        }
+        
+        // Input/Output information for successful operations
+        if (isSuccess)
+        {
+            if (input != null)
+            {
+                sb.AppendLine($"{InfoColor}├─ Input:{ResetColor}");
+                sb.AppendLine($"{InfoColor}│  {FormatObject(input)}{ResetColor}");
+            }
+            if (output != null)
+            {
+                sb.AppendLine($"{InfoColor}├─ Output:{ResetColor}");
+                sb.AppendLine($"{InfoColor}│  {FormatObject(output)}{ResetColor}");
+            }
+        }
         
         // Status
         if (isSuccess)
@@ -135,7 +216,9 @@ public static class ServiceFrameworkLogger
         ILogger logger,
         string operationType,
         string details,
-        LogLevel logLevel = LogLevel.Information)
+        LogLevel logLevel = LogLevel.Information,
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0)
     {
         var color = logLevel switch
         {
@@ -153,9 +236,110 @@ public static class ServiceFrameworkLogger
             _ => InfoIcon
         };
 
-        var message = $"{BoldText}{color}{icon} SERVICEFRAMEWORK - {operationType.ToUpper()}{ResetColor}\n{color}└─ {details}{ResetColor}";
+        // Build message with source location
+        var fileName = Path.GetFileName(callerFilePath);
+        var sourceInfo = !string.IsNullOrEmpty(fileName) ? $" [{fileName}:{callerLineNumber}]" : "";
+        
+        var message = $"{BoldText}{color}{icon} SERVICEFRAMEWORK - {operationType.ToUpper()}{sourceInfo}{ResetColor}\n{color}└─ {details}{ResetColor}";
         
         logger.Log(logLevel, message);
+    }
+
+    /// <summary>
+    /// Format an object for structured logging output
+    /// </summary>
+    private static string FormatObject(object obj)
+    {
+        try
+        {
+            if (obj is string str)
+            {
+                // Handle multiline strings
+                var innerlines = str.Split('\n');
+                if (innerlines.Length > 1)
+                {
+                    var innerformattedLines = innerlines.Select((line, index) => 
+                        index == 0 ? line : $"{InfoColor}│  {line}{ResetColor}");
+                    return string.Join('\n', innerformattedLines);
+                }
+                return str;
+            }
+                
+            var json = JsonSerializer.Serialize(obj, new JsonSerializerOptions 
+            { 
+                WriteIndented = true,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            });
+            
+            // Add proper tree structure indentation with │ for multiline content
+            var lines = json.Split('\n');
+            var formattedLines = lines.Select((line, index) => 
+            {
+                if (string.IsNullOrWhiteSpace(line)) 
+                    return line;
+                    
+                // First line doesn't need the tree prefix, subsequent lines do
+                return index == 0 ? $"   {line}" : $"{InfoColor}│     {line}{ResetColor}";
+            });
+            
+            return string.Join('\n', formattedLines);
+        }
+        catch
+        {
+            return obj.ToString() ?? "null";
+        }
+    }
+
+    /// <summary>
+    /// Extract error location from exception stack trace
+    /// </summary>
+    private static string? GetErrorLocation(Exception exception)
+    {
+        try
+        {
+            var stackTrace = new StackTrace(exception, true);
+            
+            // Find the first frame with file information that's not from system assemblies
+            for (int i = 0; i < stackTrace.FrameCount; i++)
+            {
+                var frame = stackTrace.GetFrame(i);
+                if (frame == null) continue;
+                
+                var fileName = frame.GetFileName();
+                var lineNumber = frame.GetFileLineNumber();
+                
+                if (!string.IsNullOrEmpty(fileName) && lineNumber > 0)
+                {
+                    // Skip system assemblies and framework code
+                    if (!fileName.Contains("System.") && 
+                        !fileName.Contains("Microsoft.") && 
+                        !fileName.Contains("mscorlib") &&
+                        !fileName.Contains("ServiceFrameworkLogger.cs"))
+                    {
+                        var shortFileName = Path.GetFileName(fileName);
+                        var methodName = frame.GetMethod()?.Name ?? "Unknown";
+                        return $"{shortFileName}:{lineNumber} in {methodName}()";
+                    }
+                }
+            }
+            
+            // If no file information found, try to get at least the method name
+            var topFrame = stackTrace.GetFrame(0);
+            if (topFrame != null)
+            {
+                var method = topFrame.GetMethod();
+                if (method != null)
+                {
+                    return $"{method.DeclaringType?.Name}.{method.Name}()";
+                }
+            }
+        }
+        catch
+        {
+            // If we can't get stack trace info, don't fail the logging
+        }
+        
+        return null;
     }
 }
 
@@ -172,7 +356,9 @@ public static class ServiceFrameworkLoggerExtensions
         AuditInfo? auditInfo = null,
         long durationMs = 0,
         bool isSuccess = true,
-        Exception? exception = null)
+        Exception? exception = null,
+        object? input = null,
+        object? output = null)
     {
         ServiceFrameworkLogger.LogRequestResponse(
             logger,
@@ -184,9 +370,13 @@ public static class ServiceFrameworkLoggerExtensions
             auditInfo?.CorrelationId,
             auditInfo?.UserId,
             auditInfo?.TenantId,
+            auditInfo?.Issuer,
+            auditInfo?.Metadata,
             durationMs,
             isSuccess,
-            exception);
+            exception,
+            input,
+            output);
     }
 
     public static void LogServiceFrameworkPubSub(
@@ -198,7 +388,9 @@ public static class ServiceFrameworkLoggerExtensions
         AuditInfo? auditInfo = null,
         long durationMs = 0,
         bool isSuccess = true,
-        Exception? exception = null)
+        Exception? exception = null,
+        object? input = null,
+        object? output = null)
     {
         ServiceFrameworkLogger.LogPubSub(
             logger,
@@ -211,9 +403,13 @@ public static class ServiceFrameworkLoggerExtensions
             auditInfo?.CorrelationId,
             auditInfo?.UserId,
             auditInfo?.TenantId,
+            auditInfo?.Issuer,
+            auditInfo?.Metadata,
             durationMs,
             isSuccess,
-            exception);
+            exception,
+            input,
+            output);
     }
 }
 
@@ -225,4 +421,6 @@ public record AuditInfo(
     string? CorrelationId,
     string? UserId,
     string? TenantId,
-    string? Timestamp = null);
+    string? Timestamp = null,
+    string? Issuer = null,
+    Dictionary<string, string>? Metadata = null);

@@ -1,6 +1,9 @@
+using System.Reflection;
+
 using EdgeSync.ServiceFramework.Abstractions;
 using EdgeSync.ServiceFramework.Abstractions.JetStream;
 using EdgeSync.ServiceFramework.Abstractions.Models;
+using EdgeSync.ServiceFramework.Data;
 
 using Microsoft.Extensions.Logging;
 
@@ -32,6 +35,7 @@ public class JetStreamClient : IDisposable, IJetStreamClient
 
     private readonly INatsConnectionFactory _natsConnectionFactory;
     private readonly NatsConnectionSettings? _connectionSettings;
+    private readonly string _serviceName;
 
     /// <param name="logger">The logger instance to use for logging.</param>
     /// <param name="natsConnectionFactory">The connection factory for create nats connection instance.</param>
@@ -41,6 +45,7 @@ public class JetStreamClient : IDisposable, IJetStreamClient
         _logger = logger;
         _natsConnectionFactory = natsConnectionFactory;
         _connectionSettings = connectionSettings;
+        _serviceName = GetServiceName();
     }
 
     public string Url { get; set; } = string.Empty;
@@ -49,6 +54,34 @@ public class JetStreamClient : IDisposable, IJetStreamClient
     public string StreamName { get; set; } = "sf_stream";
 
     public int MaxMsgs { get; } = ServiceConfig.NatsJetStreamConsumerFetch; // max number of messages to per callback function call.
+
+    private static string GetServiceName()
+    {
+        var entryAssembly = Assembly.GetEntryAssembly();
+        if (entryAssembly != null)
+        {
+            // 方法1: 使用 Assembly Name (不含版本號)
+            var assemblyName = entryAssembly.GetName().Name;
+            if (!string.IsNullOrEmpty(assemblyName))
+                return assemblyName;
+
+            if (entryAssembly
+                .GetCustomAttributes(typeof(AssemblyTitleAttribute), false)
+                .FirstOrDefault() is AssemblyTitleAttribute titleAttribute && !string.IsNullOrEmpty(titleAttribute.Title))
+                return titleAttribute.Title;
+
+            if (entryAssembly
+                .GetCustomAttributes(typeof(AssemblyProductAttribute), false)
+                .FirstOrDefault() is AssemblyProductAttribute productAttribute && !string.IsNullOrEmpty(productAttribute.Product))
+                return productAttribute.Product;
+        }
+
+        var processName = System.Diagnostics.Process.GetCurrentProcess().ProcessName;
+        if (!string.IsNullOrEmpty(processName) && processName != "dotnet")
+            return processName;
+
+        return "UnknownService";
+    }
 
     public async Task TryConnectAsync()
     {
@@ -292,16 +325,43 @@ public class JetStreamClient : IDisposable, IJetStreamClient
     {
         await TryConnectAsync();
 
-        var response = await NatsConnection!.RequestAsync<T, string>(subject, data, cancellationToken: cancellationToken);
-        return response.Data;
+        var requestType = data.GetType();
+        
+        if (requestType.IsGenericType && requestType.GetGenericTypeDefinition() == typeof(RequestDto<>))
+        {
+            var serializer = NatsConnection.Opts.SerializerRegistry.GetSerializer<T>();
+            var response = await NatsConnection!.RequestAsync<T, string>(subject, data, requestSerializer: serializer, cancellationToken: cancellationToken);
+            return response.Data;
+        }
+        else
+        {
+            var request = Enrich(data);
+            var serializer = NatsConnection.Opts.SerializerRegistry.GetSerializer<RequestDto<T>>();            
+            var response = await NatsConnection!.RequestAsync<RequestDto<T>, string>(subject, request, requestSerializer: serializer, cancellationToken: cancellationToken);
+            return response.Data;
+        }
     }
 
     public async Task<TR?> RequestAsync<T, TR>(string subject, T data, CancellationToken cancellationToken = default)
     {
         await TryConnectAsync();
 
-        var response = await NatsConnection!.RequestAsync<T, TR>(subject, data, cancellationToken: cancellationToken);
-        return response.Data;
+        var requestType = data.GetType();
+        if (requestType.IsGenericType && requestType.GetGenericTypeDefinition() == typeof(RequestDto<>))
+        {
+            var serializer = NatsConnection.Opts.SerializerRegistry.GetSerializer<RequestDto<T>>();
+            var deserializer = NatsConnection.Opts.SerializerRegistry.GetDeserializer<TR>();
+            var response = await NatsConnection!.RequestAsync<RequestDto<T>, TR>(subject, data, requestSerializer: serializer, replySerializer: deserializer, cancellationToken: cancellationToken);
+            return response.Data;
+        }
+        else
+        {
+            var request = Enrich(data);
+            var serializer = NatsConnection.Opts.SerializerRegistry.GetSerializer<RequestDto<T>>();
+            var deserializer = NatsConnection.Opts.SerializerRegistry.GetDeserializer<TR>();
+            var response = await NatsConnection!.RequestAsync<RequestDto<T>, TR>(subject, request, requestSerializer: serializer, replySerializer: deserializer, cancellationToken: cancellationToken);
+            return response.Data;
+        }
     }
 
     /// <summary>
@@ -321,6 +381,11 @@ public class JetStreamClient : IDisposable, IJetStreamClient
         if (NatsConnection != null)
             NatsConnection.DisposeAsync().AsTask().GetAwaiter().GetResult();
         NatsConnection = null;
+    }
+
+    private RequestDto<T> Enrich<T>(T data)
+    {
+        return RequestDto<T>.Create(data, _serviceName);
     }
 }
 

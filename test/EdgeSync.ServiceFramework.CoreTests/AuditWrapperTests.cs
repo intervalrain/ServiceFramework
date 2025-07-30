@@ -16,14 +16,16 @@ public class AuditWrapperTests
         var correlationId = "corr789";
 
         // Act
-        var requestDto = RequestDto<TestData>.Create(data, userId, tenantId)
-            .WithCorrelationId(correlationId);
+        var requestDto = RequestDto<TestData>.Create(data)
+            .AddMetadata("UserId", userId)
+            .AddMetadata("TenantId", tenantId)
+            .AddMetadata("CorrelationId", correlationId);
 
         // Assert
         Assert.Equal(data, requestDto.Data);
-        Assert.Equal(userId, requestDto.UserId);
-        Assert.Equal(tenantId, requestDto.TenantId);
-        Assert.Equal(correlationId, requestDto.CorrelationId);
+        Assert.Equal(userId, requestDto.Metadata!["UserId"]);
+        Assert.Equal(tenantId, requestDto.Metadata!["TenantId"]);
+        Assert.Equal(correlationId, requestDto.Metadata!["CorrelationId"]);
         Assert.NotEqual(Guid.Empty, requestDto.ReqSeqId);
         Assert.True(requestDto.Timestamp > 0);
     }
@@ -39,15 +41,21 @@ public class AuditWrapperTests
         var correlationId = "corr789";
 
         // Act
+        var metadata = new Dictionary<string, string>
+        {
+            ["UserId"] = userId,
+            ["TenantId"] = tenantId,
+            ["CorrelationId"] = correlationId
+        };
         var responseDto = ResponseDto<TestData>.Success(data, reqSeqId)
-            .WithAuditInfo(userId, tenantId, correlationId);
+            .EnrichWith(null, metadata);
 
         // Assert
         Assert.True(responseDto.IsSuccess);
         Assert.Equal(data, responseDto.Data);
-        Assert.Equal(userId, responseDto.UserId);
-        Assert.Equal(tenantId, responseDto.TenantId);
-        Assert.Equal(correlationId, responseDto.CorrelationId);
+        Assert.Equal(userId, responseDto.Metadata!["UserId"]);
+        Assert.Equal(tenantId, responseDto.Metadata!["TenantId"]);
+        Assert.Equal(correlationId, responseDto.Metadata!["CorrelationId"]);
         Assert.Equal(reqSeqId, responseDto.ReqSeqId);
         Assert.NotEqual(Guid.Empty, responseDto.RspSeqId);
         Assert.True(responseDto.Timestamp > 0);

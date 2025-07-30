@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\EdgeSync.ServiceFramework.Abstractions\EdgeSync.ServiceFramework.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\src\EdgeSync.ServiceFramework.Core\EdgeSync.ServiceFramework.Core.csproj" />
+    <ProjectReference Include="..\..\..\src\EdgeSync.ServiceFramework.DependencyInjection\EdgeSync.ServiceFramework.DependencyInjection.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

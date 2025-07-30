@@ -22,9 +22,22 @@ public class PubSubPushClassicSubscriptionHandler : BaseSubscriptionHandler
 
     public override async Task SubscribeAsync(INatsConnection connection, Type serviceType, NatsMethodInfo methodInfo, CancellationToken cancellationToken)
     {
-        var subscription = await connection.SubscribeCoreAsync<string>(methodInfo.SubjectName, cancellationToken: cancellationToken);
+        // Use the generic subscription helper to resolve and invoke with correct type
+        await InvokeGenericSubscription(nameof(SubscribeWithTypeAsync), connection, serviceType, methodInfo, cancellationToken);
+    }
+
+    private async Task SubscribeWithTypeAsync<T>(INatsConnection connection, Type serviceType, NatsMethodInfo methodInfo, CancellationToken cancellationToken) where T : class
+    {
+        // Get the correct deserializer for the message type
+        var deserializer = connection.Opts.SerializerRegistry.GetDeserializer<T>();
         
-        Logger.LogInformation("Classic PubSub subscription created for subject: {Subject}", methodInfo.SubjectName);
+        var subscription = await connection.SubscribeCoreAsync<T>(
+            methodInfo.SubjectName, 
+            serializer: deserializer, 
+            cancellationToken: cancellationToken);
+        
+        Logger.LogInformation("Classic PubSub subscription created for subject: {Subject} with type: {MessageType}", 
+            methodInfo.SubjectName, typeof(T).Name);
 
         // Process messages
         await foreach (var msg in subscription.Msgs.ReadAllAsync(cancellationToken))
@@ -33,7 +46,7 @@ public class PubSubPushClassicSubscriptionHandler : BaseSubscriptionHandler
             {
                 try
                 {
-                    await HandleClassicMessage(serviceType, methodInfo, msg, connection);
+                    await HandleClassicMessage<T>(serviceType, methodInfo, msg, connection);
                 }
                 catch (Exception ex)
                 {

@@ -7,7 +7,8 @@ using AuthorSystem.Application.Services;
 using AuthorSystem.Domain.Repositories;
 using AuthorSystem.Infrastructure.Repositories;
 
-using EdgeSync.ServiceFramework.AspNetCore.Mvc;
+using EdgeSync.ServiceFramework;
+
 using EdgeSync.ServiceFramework.Data.Json;
 using EdgeSync.ServiceFramework.DependencyInjection;
 
@@ -84,6 +85,7 @@ public class Program
 
             builder.Services.AddSingleton<IAuthorRepository, InMemoryAuthorRepository>();
             builder.Services.AddScoped<IAuthorAppService, AuthorAppService>();
+            builder.Services.AddScoped<ISampleAppService, SampleAppService>();
 
             builder.Services.AddAutoMapper(typeof(AuthorMappingProfile));
 

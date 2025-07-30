@@ -3,6 +3,7 @@ using System.Text.Json;
 
 using EdgeSync.ServiceFramework.Abstractions;
 using EdgeSync.ServiceFramework.Abstractions.Attributes;
+using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Abstractions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
 using EdgeSync.ServiceFramework.Data;
 
@@ -24,6 +25,7 @@ public abstract class BaseSubscriptionHandler : ISubscriptionHandler
     protected readonly ILogger Logger;
     protected readonly AutoConventionOptions Options;
     protected readonly ServiceFrameworkOptions ServiceFrameworkOptions;
+    protected readonly IMessageTypeResolver MessageTypeResolver;
 
     protected BaseSubscriptionHandler(IServiceProvider serviceProvider, ILogger logger)
     {
@@ -33,12 +35,105 @@ public abstract class BaseSubscriptionHandler : ISubscriptionHandler
         Options = optionsAccessor.Value;
         var serviceFrameworkOptionsAccessor = serviceProvider.GetRequiredService<IOptions<ServiceFrameworkOptions>>();
         ServiceFrameworkOptions = serviceFrameworkOptionsAccessor.Value;
+        MessageTypeResolver = serviceProvider.GetRequiredService<IMessageTypeResolver>();
     }
 
     public abstract ConventionMode SupportedMode { get; }
 
     public abstract Task SubscribeAsync(INatsConnection connection, Type serviceType, NatsMethodInfo methodInfo, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Helper method to invoke generic subscription methods with resolved types
+    /// </summary>
+    protected async Task InvokeGenericSubscription(
+        string methodName,
+        INatsConnection connection, 
+        Type serviceType, 
+        NatsMethodInfo methodInfo, 
+        CancellationToken cancellationToken)
+    {
+        var messageType = MessageTypeResolver.ResolveMessageType(methodInfo.Method, Options.EnableAuditWrapper);
+        
+        Logger.LogDebug("Resolved message type: {MessageType} for method: {Method}", 
+            messageType.Name, methodInfo.Method.Name);
+        
+        var subscribeMethod = GetType()
+            .GetMethod(methodName, BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.MakeGenericMethod(messageType);
+            
+        if (subscribeMethod == null)
+        {
+            throw new InvalidOperationException($"Method {methodName} not found in {GetType().Name}");
+        }
+        
+        await (Task)subscribeMethod.Invoke(this, new object[] { 
+            connection, serviceType, methodInfo, cancellationToken 
+        });
+    }
+
+    /// <summary>
+    /// Generic message handler for request-response pattern
+    /// </summary>
+    protected async Task HandleRequestResponseMessage<T>(Type serviceType, NatsMethodInfo methodInfo, NatsMsg<T> msg, INatsConnection connection) where T : class
+    {
+        using var scope = ServiceProvider.CreateScope();
+
+        try
+        {
+            var service = GetServiceInstance(scope.ServiceProvider, serviceType);
+            if (service == null)
+            {
+                Logger.LogError("Could not resolve service: {ServiceType}", serviceType.Name);
+                return;
+            }
+
+            var parameters = methodInfo.Method.GetParameters();
+            var args = await DeserializeMethodParametersAsync<T>(parameters, msg.Data, serviceType, methodInfo);
+
+            // Invoke the method
+            var result = methodInfo.Method.Invoke(service, args);
+
+            if (result is Task task)
+            {
+                await task;
+
+                // Get the result value if it's Task<T>
+                if (task.GetType().IsGenericType)
+                {
+                    var resultProperty = task.GetType().GetProperty("Result");
+                    var taskResult = resultProperty?.GetValue(task);
+
+                    // Handle response with proper serialization
+                    if (taskResult != null)
+                    {
+                        var response = CreateNatsResponse(taskResult);
+                        var responseType = MessageTypeResolver.ResolveResponseType(methodInfo.Method, Options.EnableAuditWrapper);
+                        
+                        // Use the correct serializer for the response type
+                        await msg.ReplyAsync(response);
+                    }
+                    else
+                    {
+                        // No result, send success response
+                        var successResponse = Options.EnableAuditWrapper 
+                            ? ResponseDto<object>.Success(new object(), Guid.NewGuid())
+                            : new NatsResponse<object> { IsSuccess = true, Data = null, Error = null };
+                        
+                        await msg.ReplyAsync(successResponse);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error handling request/response message for subject: {Subject}", methodInfo.SubjectName);
+            throw; // Re-throw to be handled by caller
+        }
+    }
+
+    /// <summary>
+    /// Legacy string-based message handler (deprecated)
+    /// </summary>
     protected async Task HandleRequestResponseMessage(Type serviceType, NatsMethodInfo methodInfo, NatsMsg<string> msg, INatsConnection connection)
     {
         using var scope = ServiceProvider.CreateScope();
@@ -95,6 +190,43 @@ public abstract class BaseSubscriptionHandler : ISubscriptionHandler
         }
     }
 
+    /// <summary>
+    /// Generic message handler for JetStream pattern
+    /// </summary>
+    protected async Task HandleJetStreamMessage<T>(Type serviceType, NatsMethodInfo methodInfo, NatsJSMsg<T> msg, INatsConnection connection) where T : class
+    {
+        using var scope = ServiceProvider.CreateScope();
+
+        try
+        {
+            var service = GetServiceInstance(scope.ServiceProvider, serviceType);
+            if (service == null)
+            {
+                Logger.LogError("Could not resolve service: {ServiceType}", serviceType.Name);
+                return;
+            }
+
+            var parameters = methodInfo.Method.GetParameters();
+            var args = await DeserializeMethodParametersAsync<T>(parameters, msg.Data, serviceType, methodInfo);
+
+            // Invoke the method
+            var result = methodInfo.Method.Invoke(service, args);
+
+            if (result is Task task)
+            {
+                await task;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error handling JetStream message for subject: {Subject}", methodInfo.SubjectName);
+            throw; // Re-throw to trigger NAK
+        }
+    }
+
+    /// <summary>
+    /// Legacy string-based JetStream message handler (deprecated)
+    /// </summary>
     protected async Task HandleJetStreamMessage(Type serviceType, NatsMethodInfo methodInfo, NatsJSMsg<string> msg, INatsConnection connection)
     {
         using var scope = ServiceProvider.CreateScope();
@@ -126,6 +258,43 @@ public abstract class BaseSubscriptionHandler : ISubscriptionHandler
         }
     }
 
+    /// <summary>
+    /// Generic message handler for Classic pub-sub pattern
+    /// </summary>
+    protected async Task HandleClassicMessage<T>(Type serviceType, NatsMethodInfo methodInfo, NatsMsg<T> msg, INatsConnection connection) where T : class
+    {
+        using var scope = ServiceProvider.CreateScope();
+
+        try
+        {
+            var service = GetServiceInstance(scope.ServiceProvider, serviceType);
+            if (service == null)
+            {
+                Logger.LogError("Could not resolve service: {ServiceType}", serviceType.Name);
+                return;
+            }
+
+            var parameters = methodInfo.Method.GetParameters();
+            var args = await DeserializeMethodParametersAsync<T>(parameters, msg.Data, serviceType, methodInfo);
+
+            // Invoke the method
+            var result = methodInfo.Method.Invoke(service, args);
+
+            if (result is Task task)
+            {
+                await task;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error handling classic message for subject: {Subject}", methodInfo.SubjectName);
+            // Classic mode doesn't have acknowledgment, just log the error
+        }
+    }
+
+    /// <summary>
+    /// Legacy string-based Classic message handler (deprecated)
+    /// </summary>
     protected async Task HandleClassicMessage(Type serviceType, NatsMethodInfo methodInfo, NatsMsg<string> msg, INatsConnection connection)
     {
         using var scope = ServiceProvider.CreateScope();
@@ -157,6 +326,116 @@ public abstract class BaseSubscriptionHandler : ISubscriptionHandler
         }
     }
 
+    /// <summary>
+    /// Generic method parameter deserialization with proper typing
+    /// </summary>
+    private async Task<object[]> DeserializeMethodParametersAsync<T>(ParameterInfo[] parameters, T? messageData, Type serviceType, NatsMethodInfo methodInfo) where T : class
+    {
+        var args = new object[parameters.Length];
+
+        // If no parameters, return empty array
+        if (parameters.Length == 0)
+        {
+            return args;
+        }
+
+        // For parameterless methods or null data
+        if (messageData == null)
+        {
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                var paramType = parameters[i].ParameterType;
+                args[i] = paramType.IsValueType ? Activator.CreateInstance(paramType)! : null!;
+            }
+            return args;
+        }
+
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            var paramType = parameters[i].ParameterType;
+            
+            // Handle direct type match
+            if (paramType.IsAssignableFrom(typeof(T)))
+            {
+                args[i] = messageData;
+                continue;
+            }
+
+            // Handle RequestDto unwrapping
+            if (Options.EnableAuditWrapper && typeof(T).IsGenericType && typeof(T).GetGenericTypeDefinition() == typeof(RequestDto<>))
+            {
+                var requestDto = messageData as dynamic;
+                if (requestDto?.Data != null)
+                {
+                    args[i] = requestDto.Data;
+                    continue;
+                }
+            }
+
+            // Handle Guid extraction from object data (for backward compatibility)
+            if (paramType == typeof(Guid))
+            {
+                try
+                {
+                    if (messageData is string jsonString)
+                    {
+                        var request = JsonSerializer.Deserialize<JsonElement>(jsonString);
+                        if (request.TryGetProperty("Id", out var idProp))
+                        {
+                            args[i] = Guid.Parse(idProp.GetString()!);
+                            continue;
+                        }
+                    }
+                    else if (messageData.GetType().GetProperty("Id") is var idProperty && idProperty != null)
+                    {
+                        var idValue = idProperty.GetValue(messageData);
+                        if (idValue is Guid guid)
+                        {
+                            args[i] = guid;
+                            continue;
+                        }
+                        else if (idValue is string guidString && Guid.TryParse(guidString, out var parsedGuid))
+                        {
+                            args[i] = parsedGuid;
+                            continue;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogWarning(ex, "Failed to extract Guid from message data for parameter {ParameterName}", parameters[i].Name);
+                }
+                
+                args[i] = Guid.Empty;
+                continue;
+            }
+
+            // Default assignment (try direct cast or create default instance)
+            try
+            {
+                if (paramType.IsAssignableFrom(messageData.GetType()))
+                {
+                    args[i] = messageData;
+                }
+                else
+                {
+                    args[i] = paramType.IsValueType ? Activator.CreateInstance(paramType)! : null!;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Failed to assign parameter {ParameterName} of type {ParameterType}", 
+                    parameters[i].Name, paramType.Name);
+                args[i] = paramType.IsValueType ? Activator.CreateInstance(paramType)! : null!;
+            }
+        }
+
+        return await Task.FromResult(args);
+    }
+
+    /// <summary>
+    /// Legacy string-based parameter deserialization (deprecated)
+    /// </summary>
     private async Task<object[]> DeserializeMethodParametersAsync(ParameterInfo[] parameters, string? messageData, Type serviceType, NatsMethodInfo methodInfo)
     {
         var args = new object[parameters.Length];

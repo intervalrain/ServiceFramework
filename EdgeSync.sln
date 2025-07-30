@@ -61,6 +61,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EdgeSync.ServiceFramework.C
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EdgeSync.ServiceFramework.IntegrationTests", "test\EdgeSync.ServiceFramework.IntegrationTests\EdgeSync.ServiceFramework.IntegrationTests.csproj", "{279741B9-5D75-477E-8576-6A7D08757DAB}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AuthorSystem.Client", "samples\AuthorSystem\AuthorSystem.Client\AuthorSystem.Client.csproj", "{EB7C8D82-D4A9-4DFD-89BD-8FDAC8A68086}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -162,6 +164,10 @@ Global
 		{279741B9-5D75-477E-8576-6A7D08757DAB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{279741B9-5D75-477E-8576-6A7D08757DAB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{279741B9-5D75-477E-8576-6A7D08757DAB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EB7C8D82-D4A9-4DFD-89BD-8FDAC8A68086}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EB7C8D82-D4A9-4DFD-89BD-8FDAC8A68086}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EB7C8D82-D4A9-4DFD-89BD-8FDAC8A68086}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EB7C8D82-D4A9-4DFD-89BD-8FDAC8A68086}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{994DEFF9-0ED1-423B-92C9-8FC96E702CA6} = {7775D631-92F3-4729-9A37-B672EFF98723}
@@ -190,5 +196,6 @@ Global
 		{3D3E145A-113B-436F-84D4-348898AA2DE5} = {04B6755E-1892-4BB2-867F-0BF355B3D92A}
 		{E0CCB74E-B727-4849-8E8D-F2741D21A5B2} = {BB560B78-D74E-4261-91BE-881E9A81B75F}
 		{279741B9-5D75-477E-8576-6A7D08757DAB} = {BB560B78-D74E-4261-91BE-881E9A81B75F}
+		{EB7C8D82-D4A9-4DFD-89BD-8FDAC8A68086} = {994DEFF9-0ED1-423B-92C9-8FC96E702CA6}
 	EndGlobalSection
 EndGlobal

@@ -11,38 +11,53 @@ public static class AuditInfoExtractor
     /// <summary>
     /// Extracts audit information from a request object
     /// </summary>
-    public static AuditInfo? ExtractFromRequest(object? request)
+    public static bool ExtractFromRequest(object? request, out AuditInfo? info)
     {
-        if (request == null) return null;
-
-        try
+        if (request != null)
         {
-            var requestType = request.GetType();
-
-            // Check if it's a RequestDto<T>
-            if (requestType.IsGenericType && requestType.GetGenericTypeDefinition() == typeof(RequestDto<>))
+            try
             {
-                var reqSeqIdProp = requestType.GetProperty("ReqSeqId");
-                var correlationIdProp = requestType.GetProperty("CorrelationId");
-                var userIdProp = requestType.GetProperty("UserId");
-                var tenantIdProp = requestType.GetProperty("TenantId");
-                var timestampProp = requestType.GetProperty("Timestamp");
+                var requestType = request.GetType();
 
-                var reqSeqId = reqSeqIdProp?.GetValue(request)?.ToString();
-                var correlationId = correlationIdProp?.GetValue(request)?.ToString();
-                var userId = userIdProp?.GetValue(request)?.ToString();
-                var tenantId = tenantIdProp?.GetValue(request)?.ToString();
-                var timestamp = timestampProp?.GetValue(request)?.ToString();
+                // Check if it's a RequestDto<T>
+                if (requestType.IsGenericType && requestType.GetGenericTypeDefinition() == typeof(RequestDto<>))
+                {
+                    var reqSeqIdProp = requestType.GetProperty("ReqSeqId");
+                    var timestampProp = requestType.GetProperty("Timestamp");
+                    var issuerProp = requestType.GetProperty("Issuer");
+                    var metadataProp = requestType.GetProperty("Metadata");
 
-                return new AuditInfo(reqSeqId, correlationId, userId, tenantId, timestamp);
+                    var reqSeqId = reqSeqIdProp?.GetValue(request)?.ToString();
+                    var timestamp = timestampProp?.GetValue(request)?.ToString();
+                    var issuer = issuerProp?.GetValue(request)?.ToString();
+                    
+                    // Extract audit info from metadata
+                    string? correlationId = null;
+                    string? userId = null;
+                    string? tenantId = null;
+
+                    Dictionary<string, string>? metadata = null;
+                    if (metadataProp?.GetValue(request) is Dictionary<string, string> metadataDict)
+                    {
+                        metadata = metadataDict;
+                        metadataDict.TryGetValue("CorrelationId", out correlationId);
+                        metadataDict.TryGetValue("UserId", out userId);
+                        metadataDict.TryGetValue("TenantId", out tenantId);
+                    }
+
+                    info = new AuditInfo(reqSeqId, correlationId, userId, tenantId, timestamp, issuer, metadata);
+                    return true;
+                }
+            }
+            catch
+            {
+                // Ignore errors and return null
             }
         }
-        catch
-        {
-            // Ignore errors and return null
-        }
 
-        return null;
+        info = null;
+
+        return false;
     }
 
     /// <summary>
@@ -61,20 +76,31 @@ public static class AuditInfoExtractor
             {
                 var reqSeqIdProp = responseType.GetProperty("ReqSeqId");
                 var rspSeqIdProp = responseType.GetProperty("RspSeqId");
-                var correlationIdProp = responseType.GetProperty("CorrelationId");
-                var userIdProp = responseType.GetProperty("UserId");
-                var tenantIdProp = responseType.GetProperty("TenantId");
                 var timestampProp = responseType.GetProperty("Timestamp");
+                var issuerProp = responseType.GetProperty("Issuer");
+                var metadataProp = responseType.GetProperty("Metadata");
 
                 var reqSeqId = reqSeqIdProp?.GetValue(response)?.ToString();
                 var rspSeqId = rspSeqIdProp?.GetValue(response)?.ToString();
-                var correlationId = correlationIdProp?.GetValue(response)?.ToString();
-                var userId = userIdProp?.GetValue(response)?.ToString();
-                var tenantId = tenantIdProp?.GetValue(response)?.ToString();
                 var timestamp = timestampProp?.GetValue(response)?.ToString();
+                var issuer = issuerProp?.GetValue(response)?.ToString();
+
+                // Extract audit info from metadata
+                string? correlationId = null;
+                string? userId = null;
+                string? tenantId = null;
+
+                Dictionary<string, string>? metadata = null;
+                if (metadataProp?.GetValue(response) is Dictionary<string, string> metadataDict)
+                {
+                    metadata = metadataDict;
+                    metadataDict.TryGetValue("CorrelationId", out correlationId);
+                    metadataDict.TryGetValue("UserId", out userId);
+                    metadataDict.TryGetValue("TenantId", out tenantId);
+                }
 
                 // For response, we use RspSeqId as the primary sequence ID
-                return new AuditInfo(rspSeqId ?? reqSeqId, correlationId, userId, tenantId, timestamp);
+                return new AuditInfo(rspSeqId ?? reqSeqId, correlationId, userId, tenantId, timestamp, issuer, metadata);
             }
         }
         catch
@@ -83,16 +109,5 @@ public static class AuditInfoExtractor
         }
 
         return null;
-    }
-
-    /// <summary>
-    /// Extracts audit information from either request or response object
-    /// </summary>
-    public static AuditInfo? ExtractFromObject(object? obj)
-    {
-        if (obj == null) return null;
-
-        // Try request first, then response
-        return ExtractFromRequest(obj) ?? ExtractFromResponse(obj);
     }
 }

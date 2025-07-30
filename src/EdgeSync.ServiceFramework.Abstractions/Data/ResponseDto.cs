@@ -27,14 +27,11 @@ public record ResponseDto<T>
     [JsonPropertyName("message")]
     public string Message { get; init; } = string.Empty;
 
-    [JsonPropertyName("userId")]
-    public string? UserId { get; init; }
+    [JsonPropertyName("issuer")]
+    public string? Issuer { get; init; } = "Unknown";
 
-    [JsonPropertyName("tenantId")]
-    public string? TenantId { get; init; }
-
-    [JsonPropertyName("correlationId")]
-    public string? CorrelationId { get; init; }
+    [JsonPropertyName("metadata")]
+    public Dictionary<string, string>? Metadata { get; init; }
 
     [JsonPropertyName("isError")]
     public bool IsError => Errors.Any();
@@ -54,6 +51,15 @@ public record ResponseDto<T>
         Data = data;
     }
 
+    protected ResponseDto(List<Error> errors, string? message = null)
+    {
+        Timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        ReqSeqId = Guid.NewGuid();
+        RspSeqId = Guid.NewGuid();
+        Errors = errors;
+        Message = message ?? errors.FirstOrDefault().Description ?? "An error occurred";
+    }
+
     protected ResponseDto(List<Error> errors, Guid reqSeqId, string? message = null)
     {
         Timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -63,12 +69,25 @@ public record ResponseDto<T>
         Message = message ?? errors.FirstOrDefault().Description ?? "An error occurred";
     }
 
+    public static ResponseDto<T> Success(T data, string? message = null)
+    {
+        return new ResponseDto<T>(data)
+        {
+            Message = message ?? "Success"
+        };
+    }
+
     public static ResponseDto<T> Success(T data, Guid reqSeqId, string? message = null)
     {
         return new ResponseDto<T>(data, reqSeqId)
         {
             Message = message ?? "Success"
         };
+    }
+
+    public static ResponseDto<T> Failure(Error error)
+    {
+        return new ResponseDto<T>([error]);
     }
 
     public static ResponseDto<T> Failure(Error error, Guid reqSeqId)
@@ -103,19 +122,23 @@ public record ResponseDto<T>
             : Success(errorOr.Value, Guid.NewGuid());
     }
 
-    public ResponseDto<T> WithAuditInfo(string? userId, string? tenantId, string? correlationId = null)
+    public ResponseDto<T> EnrichWith<TRequest>(RequestDto<TRequest> input)
     {
         return this with
         {
-            UserId = userId,
-            TenantId = tenantId,
-            CorrelationId = correlationId
+            ReqSeqId = input.ReqSeqId,
+            Issuer = input.Issuer,
+            Metadata = input.Metadata
         };
     }
 
-    public ResponseDto<T> WithCorrelationId(string correlationId)
+        public ResponseDto<T> EnrichWith(string? issuer, Dictionary<string, string>? metadata = null)
     {
-        return this with { CorrelationId = correlationId };
+        return this with
+        {
+            Issuer = issuer,
+            Metadata = metadata
+        };
     }
 
     public TResult Match<TResult>(
