@@ -1,6 +1,4 @@
-using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Abstractions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
-using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Decisions;
 using EdgeSync.ServiceFramework.Core.Abstractions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,22 +14,17 @@ namespace EdgeSync.ServiceFramework.Core.Services;
 public class ServiceDiscovery : IServiceDiscovery
 {
     private readonly IServiceProvider _serviceProvider;
-    private readonly IConventionDecisionMaker _decisionMaker;
     private readonly IMethodInfoBuilder _methodInfoBuilder;
-    private readonly AutoConventionOptions _options;
     private readonly ILogger<ServiceDiscovery> _logger;
 
     public ServiceDiscovery(
         IServiceProvider serviceProvider,
-        IConventionDecisionMaker decisionMaker,
         IMethodInfoBuilder methodInfoBuilder,
         IOptions<AutoConventionOptions> options,
         ILogger<ServiceDiscovery> logger)
     {
         _serviceProvider = serviceProvider;
-        _decisionMaker = decisionMaker;
         _methodInfoBuilder = methodInfoBuilder;
-        _options = options.Value;
         _logger = logger;
     }
 

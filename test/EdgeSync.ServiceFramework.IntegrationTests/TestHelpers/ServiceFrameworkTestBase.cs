@@ -2,7 +2,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using EdgeSync.ServiceFramework.AspNetCore.Mvc;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Abstractions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Abstractions;

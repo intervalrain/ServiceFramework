@@ -2,7 +2,8 @@ using System.Reflection;
 using EdgeSync.ServiceFramework.Abstractions.Attributes;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Abstractions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Subscriptions;
-using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
+using EdgeSync.ServiceFramework.Core.Abstractions;
+
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 

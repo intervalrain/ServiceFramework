@@ -1,3 +1,5 @@
+using EdgeSync.ServiceFramework.Enums;
+
 namespace EdgeSync.ServiceFramework.Abstractions.Attributes;
 
 /// <summary>
@@ -7,6 +9,12 @@ namespace EdgeSync.ServiceFramework.Abstractions.Attributes;
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = false)]
 public class JetStreamPullAttribute : Attribute
 {
+    /// <summary>
+    /// Type of pull operation to use
+    /// Default is Consume
+    /// </summary>
+    public PullType PullType { get; set; } = PullType.Consume;
+    
     /// <summary>
     /// Consumer name for the pull subscription
     /// If not specified, will be auto-generated

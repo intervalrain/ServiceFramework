@@ -2,6 +2,7 @@ using System.Reflection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ApplicationModels;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Abstractions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Decisions;
@@ -9,9 +10,8 @@ using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Handlers;
 using EdgeSync.ServiceFramework.Core.Filters;
 using EdgeSync.ServiceFramework.Attributes;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Abstractions;
-using Microsoft.Extensions.Logging;
 
-namespace EdgeSync.ServiceFramework.Core.Services;
+namespace EdgeSync.ServiceFramework.Core.Controllers;
 
 /// <summary>
 /// Builds action models for NATS service methods following SRP

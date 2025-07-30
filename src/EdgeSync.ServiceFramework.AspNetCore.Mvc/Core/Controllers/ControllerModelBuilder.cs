@@ -2,14 +2,15 @@ using System.Reflection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ApplicationModels;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Abstractions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Extensions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Abstractions;
 using EdgeSync.ServiceFramework.Attributes;
-using Microsoft.Extensions.Logging;
+using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core;
 
-namespace EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Services;
+namespace EdgeSync.ServiceFramework.Core.Controllers;
 
 /// <summary>
 /// Builds controller models for NATS services following SRP

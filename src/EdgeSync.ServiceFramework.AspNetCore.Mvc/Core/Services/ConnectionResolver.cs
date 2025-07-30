@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NATS.Client.Core;
 
-namespace EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Services;
+namespace EdgeSync.ServiceFramework.Core.Services;
 
 /// <summary>
 /// Implementation of connection resolver for NATS connections and serializers
@@ -14,12 +14,12 @@ public class ConnectionResolver : IConnectionResolver
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<ConnectionResolver> _logger;
-    private readonly EdgeSync.ServiceFramework.Abstractions.INatsConnectionFactory _connectionFactory;
+    private readonly INatsConnectionFactory _connectionFactory;
 
     public ConnectionResolver(
         IServiceProvider serviceProvider,
         ILogger<ConnectionResolver> logger,
-        EdgeSync.ServiceFramework.Abstractions.INatsConnectionFactory connectionFactory)
+        INatsConnectionFactory connectionFactory)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;

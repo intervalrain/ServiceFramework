@@ -4,9 +4,8 @@ using EdgeSync.ServiceFramework.Core.Filters;
 using EdgeSync.ServiceFramework.Core.Serializers;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
+
 using NATS.Client.Core;
 
 namespace EdgeSync.ServiceFramework.Core.Handlers;
@@ -21,18 +20,15 @@ public class PubSubHandler : IConventionModeHandler
                                           ConventionMode.PubSubPullJetStream;
     
     private readonly ISerializerAdapterFactory _serializerAdapterFactory;
-    private readonly IServiceProvider _serviceProvider;
     private readonly IConnectionResolver _connectionResolver;
     private readonly ILogger<PubSubHandler> _logger;
 
     public PubSubHandler(
         ISerializerAdapterFactory serializerAdapterFactory,
-        IServiceProvider serviceProvider,
         IConnectionResolver connectionResolver,
         ILogger<PubSubHandler> logger)
     {
         _serializerAdapterFactory = serializerAdapterFactory;
-        _serviceProvider = serviceProvider;
         _connectionResolver = connectionResolver;
         _logger = logger;
     }

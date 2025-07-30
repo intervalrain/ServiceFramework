@@ -1,7 +1,6 @@
-using EdgeSync.ServiceFramework.Abstractions;
-using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
+using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core;
 
-namespace EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Abstractions;
+namespace EdgeSync.ServiceFramework.Core.Abstractions;
 
 /// <summary>
 /// Interface for building NATS method information with decision logic

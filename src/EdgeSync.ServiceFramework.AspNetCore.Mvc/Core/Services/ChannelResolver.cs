@@ -37,6 +37,6 @@ public class ChannelResolver : IChannelResolver
         }
 
         // 3. Use empty string for default connection
-        return string.Empty;
+        return _serviceFrameworkOptions.DefaultConnection ?? string.Empty;
     }
 }

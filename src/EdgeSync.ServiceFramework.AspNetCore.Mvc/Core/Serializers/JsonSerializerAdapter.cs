@@ -1,5 +1,8 @@
 using NATS.Client.Core;
+using NATS.Client.JetStream;
+using NATS.Client.JetStream.Models;
 using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
 
 namespace EdgeSync.ServiceFramework.Core.Serializers;
 
@@ -11,6 +14,7 @@ namespace EdgeSync.ServiceFramework.Core.Serializers;
 public class JsonSerializerAdapter : ITypedSerializerAdapter
 {
     private readonly ILogger<JsonSerializerAdapter> _logger;
+    private readonly ConcurrentDictionary<string, INatsJSContext> _jsx = new();
 
     public JsonSerializerAdapter(ILogger<JsonSerializerAdapter> logger)
     {
@@ -90,13 +94,34 @@ public class JsonSerializerAdapter : ITypedSerializerAdapter
         }
     }
 
-    public async Task PublishAsync(
+    public async Task<PubAckResponse> PublishAsync(
         INatsConnection connection, 
         string subject, 
         object? message, 
         INatsSerializerRegistry serializerRegistry)
     {
+        var context = _jsx.GetOrAdd(connection.Opts.Name, _ => new NatsJSContext(connection));
+
         if (message == null)
+        {
+            // For parameterless publish - use null payload
+            return await context.PublishAsync<object?>(subject, null, serializer: null);
+        }
+        else
+        {
+            // For publish with data
+            return await context.PublishAsync(subject, message,
+                serializer: serializerRegistry.GetSerializer<object>());
+        }
+    }
+
+    public async Task NatsPublishAsync(
+        INatsConnection connection,
+        string subject,
+        object? message,
+        INatsSerializerRegistry serializerRegistry)
+    {
+                if (message == null)
         {
             // For parameterless publish - use null payload
             await connection.PublishAsync<object?>(subject, null, serializer: null);
@@ -185,7 +210,42 @@ public class JsonSerializerAdapter : ITypedSerializerAdapter
         }
     }
 
-    public async Task PublishAsync<TMessage>(
+    public async Task<PubAckResponse> PublishAsync<TMessage>(
+        INatsConnection connection,
+        string subject,
+        TMessage message,
+        INatsSerializerRegistry serializerRegistry)
+    {
+        _logger.LogDebug("JsonSerializerAdapter: Publishing typed message to subject {Subject}, MessageType: {MessageType}",
+            subject, typeof(TMessage).Name);
+
+        var context = _jsx.GetOrAdd(connection.Opts.Name, _ => new NatsJSContext(connection));
+
+        PubAckResponse response;
+        try
+        {
+            if (message == null)
+            {
+                response = await context.PublishAsync(subject, default(TMessage), serializer: null);
+            }
+            else
+            {
+                response = await context.PublishAsync(subject, message,
+                    serializer: serializerRegistry.GetSerializer<TMessage>());
+            }
+
+            _logger.LogDebug("JsonSerializerAdapter: Successfully published typed message to subject {Subject}", subject);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "JsonSerializerAdapter: Error publishing typed message to subject {Subject}", subject);
+            throw;
+        }
+        
+    }
+
+    public async Task NatsPublishAsync<TMessage>(
         INatsConnection connection,
         string subject,
         TMessage message,

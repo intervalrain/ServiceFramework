@@ -1,4 +1,5 @@
 using NATS.Client.Core;
+using NATS.Client.JetStream.Models;
 
 namespace EdgeSync.ServiceFramework.Core.Serializers;
 
@@ -40,19 +41,31 @@ public interface ISerializerAdapter
         INatsSerializerRegistry serializerRegistry);
     
     /// <summary>
-    /// Publishes a NATS message with serializer-specific handling
+    /// Publishes a NATS message with serializer-specific handling via JetStream
     /// </summary>
     /// <param name="connection">The NATS connection</param>
     /// <param name="subject">The subject to publish to</param>
     /// <param name="message">The message data (can be null for parameterless methods)</param>
     /// <param name="serializerRegistry">The serializer registry to use</param>
-    Task PublishAsync(
+    Task<PubAckResponse> PublishAsync(
         INatsConnection connection,
         string subject,
         object? message,
         INatsSerializerRegistry serializerRegistry);
-    
-    
+        
+    /// <summary>
+    /// Publishes a NATS message with serializer-specific handling via NATS core
+    /// </summary>
+    /// <param name="connection">The NATS connection</param>
+    /// <param name="subject">The subject to publish to</param>
+    /// <param name="message">The message data (can be null for parameterless methods)</param>
+    /// <param name="serializerRegistry">The serializer registry to use</param>
+    Task NatsPublishAsync(
+        INatsConnection connection,
+        string subject,
+        object? message,
+        INatsSerializerRegistry serializerRegistry);    
+
     /// <summary>
     /// Gets the appropriate empty message type for parameterless operations
     /// </summary>

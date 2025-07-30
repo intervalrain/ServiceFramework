@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Reflection;
 
-namespace EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Services;
+namespace EdgeSync.ServiceFramework.Core.Services;
 
 /// <summary>
 /// Implementation of request data extractor for action execution contexts

@@ -5,6 +5,7 @@ using EdgeSync.ServiceFramework.Core.Filters;
 using EdgeSync.ServiceFramework.IntegrationTests.TestHelpers;
 using EdgeSync.ServiceFramework.Core.Abstractions;
 using EdgeSync.ServiceFramework.Core.Services;
+using EdgeSync.ServiceFramework.Core.Controllers;
 
 namespace EdgeSync.ServiceFramework.IntegrationTests.Simple;
 

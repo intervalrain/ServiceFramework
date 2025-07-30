@@ -1,4 +1,5 @@
 using NATS.Client.Core;
+using NATS.Client.JetStream.Models;
 
 namespace EdgeSync.ServiceFramework.Core.Serializers;
 
@@ -38,14 +39,28 @@ public interface ITypedSerializerAdapter : ISerializerAdapter
         INatsSerializerRegistry serializerRegistry);
 
     /// <summary>
-    /// Publishes a type-safe message
+    /// Publishes a type-safe message via JetStream
     /// </summary>
     /// <typeparam name="TMessage">The message type</typeparam>
     /// <param name="connection">The NATS connection</param>
     /// <param name="subject">The subject to publish to</param>
     /// <param name="message">The message data</param>
     /// <param name="serializerRegistry">The serializer registry to use</param>
-    Task PublishAsync<TMessage>(
+    Task<PubAckResponse> PublishAsync<TMessage>(
+        INatsConnection connection,
+        string subject,
+        TMessage message,
+        INatsSerializerRegistry serializerRegistry);
+
+    /// <summary>
+    /// Publishes a type-safe message via NATS core
+    /// </summary>
+    /// <typeparam name="TMessage">The message type</typeparam>
+    /// <param name="connection">The NATS connection</param>
+    /// <param name="subject">The subject to publish to</param>
+    /// <param name="message">The message data</param>
+    /// <param name="serializerRegistry">The serializer registry to use</param>
+    Task NatsPublishAsync<TMessage>(
         INatsConnection connection,
         string subject,
         TMessage message,

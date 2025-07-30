@@ -1,14 +1,14 @@
 using System.Reflection;
-using EdgeSync.ServiceFramework.Abstractions;
 using EdgeSync.ServiceFramework.Abstractions.Attributes;
 using EdgeSync.ServiceFramework.Attributes;
-using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Abstractions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Decisions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
+using EdgeSync.ServiceFramework.Core.Abstractions;
+using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Services;
+namespace EdgeSync.ServiceFramework.Core.Services;
 
 /// <summary>
 /// Implementation for building NATS method information with convention decisions
@@ -34,7 +34,7 @@ public class MethodInfoBuilder : IMethodInfoBuilder
     {
         var serviceType = service.GetType();
         var methods = serviceType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
-            .Where(m => m.Name.EndsWith("Async") && m.ReturnType.IsGenericType);
+            .Where(m => m.ReturnType.IsGenericType).ToList();
 
         var results = new List<NatsMethodInfo>();
 

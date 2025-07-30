@@ -23,9 +23,10 @@ using Microsoft.Extensions.Options;
 
 using Swashbuckle.AspNetCore.SwaggerGen;
 using EdgeSync.ServiceFramework.Core.Handlers;
+using EdgeSync.ServiceFramework.Core.Controllers;
 
 
-namespace EdgeSync.ServiceFramework.AspNetCore.Mvc;
+namespace EdgeSync.ServiceFramework;
 
 public static class ServiceCollectionExtensions
 {
@@ -72,8 +73,9 @@ public static class ServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        options = new AutoConventionOptions();
-        options.Settings = GetDefaultAssemblies();
+        using var sp = services.BuildServiceProvider();
+        options = sp.GetRequiredService<IOptions<AutoConventionOptions>>().Value;
+        options.Settings ??= GetDefaultAssemblies();
 
         return services;
     }
@@ -172,7 +174,8 @@ public static class ServiceCollectionExtensions
         if (name.StartsWith("Microsoft.") ||
             name.StartsWith("System.") ||
             name.StartsWith("netstandard") ||
-            name.StartsWith("mscorlib"))
+            name.StartsWith("mscorlib") ||
+            name.StartsWith("Serilog"))
         {
             return true;
         }
