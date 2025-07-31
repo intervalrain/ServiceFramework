@@ -1,7 +1,8 @@
-using EdgeSync.ServiceFramework.Core.Logging;
 using EdgeSync.ServiceFramework.Data;
 
-namespace EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Logging;
+using NATS.Client.Services;
+
+namespace EdgeSync.ServiceFramework.Core.Logging;
 
 /// <summary>
 /// Utility for extracting audit information from request and response DTOs
@@ -11,8 +12,9 @@ public static class AuditInfoExtractor
     /// <summary>
     /// Extracts audit information from a request object
     /// </summary>
-    public static bool ExtractFromRequest(object? request, out AuditInfo? info)
+    public static bool ExtractFromRequest<T>(NatsSvcMsg<T> msg, out AuditInfo? info)
     {
+        var request = msg.Data;
         if (request != null)
         {
             try
@@ -30,13 +32,13 @@ public static class AuditInfoExtractor
                     var reqSeqId = reqSeqIdProp?.GetValue(request)?.ToString();
                     var timestamp = timestampProp?.GetValue(request)?.ToString();
                     var issuer = issuerProp?.GetValue(request)?.ToString();
-                    
+
                     // Extract audit info from metadata
                     string? correlationId = null;
                     string? userId = null;
                     string? tenantId = null;
 
-                    Dictionary<string, string>? metadata = null;
+                    var metadata = new Dictionary<string, string>();
                     if (metadataProp?.GetValue(request) is Dictionary<string, string> metadataDict)
                     {
                         metadata = metadataDict;
@@ -45,7 +47,15 @@ public static class AuditInfoExtractor
                         metadataDict.TryGetValue("TenantId", out tenantId);
                     }
 
-                    info = new AuditInfo(reqSeqId, correlationId, userId, tenantId, timestamp, issuer, metadata);
+                    if (msg.Headers != null)
+                    {
+                        foreach (var header in msg.Headers)
+                        {
+                            metadata[header.Key] = header.Value!;
+                        }
+                    }
+
+                    info = new AuditInfo(reqSeqId, timestamp, metadata);
                     return true;
                 }
             }
@@ -100,7 +110,7 @@ public static class AuditInfoExtractor
                 }
 
                 // For response, we use RspSeqId as the primary sequence ID
-                return new AuditInfo(rspSeqId ?? reqSeqId, correlationId, userId, tenantId, timestamp, issuer, metadata);
+                return new AuditInfo(rspSeqId ?? reqSeqId, timestamp, metadata);
             }
         }
         catch

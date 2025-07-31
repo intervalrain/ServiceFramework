@@ -13,9 +13,6 @@ public record RequestDto<T>
     [JsonPropertyName("data")]
     public T Data { get; init; }
 
-    [JsonPropertyName("issuer")]
-    public string? Issuer { get; init; } = "Unknown";
-
     [JsonPropertyName("metadata")]
     public Dictionary<string, string>? Metadata { get; init; } = [];
 
@@ -27,22 +24,16 @@ public record RequestDto<T>
         Timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     }
 
-    protected RequestDto(T data, string? issuer)
+    protected RequestDto(T data)
     {
         ReqSeqId = Guid.NewGuid();
         Timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         Data = data;
-        Issuer = issuer;
     }
 
     public static RequestDto<T> Create(T data)
     {
-        return new RequestDto<T>(data, null);
-    }
-
-    public static RequestDto<T> Create(T data, string? issuer)
-    {
-        return new RequestDto<T>(data, issuer);
+        return new RequestDto<T>(data);
     }
 
     public RequestDto<T> WithMetadata(Dictionary<string, string> metadata)
@@ -65,8 +56,8 @@ public record RequestDto<T>
 
 public static class RequestDtoExtensions
 {
-    public static RequestDto<T> ToRequestDto<T>(this T data, string? issuer )
+    public static RequestDto<T> ToRequestDto<T>(this T data)
     {
-        return RequestDto<T>.Create(data, issuer);
+        return RequestDto<T>.Create(data);
     }
 }

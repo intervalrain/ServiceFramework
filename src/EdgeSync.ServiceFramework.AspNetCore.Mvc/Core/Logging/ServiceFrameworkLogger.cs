@@ -36,10 +36,6 @@ public static class ServiceFrameworkLogger
         string methodName,
         string subject,
         string? reqSeqId,
-        string? correlationId,
-        string? userId,
-        string? tenantId,
-        string? issuer,
         Dictionary<string, string>? metadata,
         long durationMs,
         bool isSuccess = true,
@@ -71,14 +67,6 @@ public static class ServiceFrameworkLogger
         // Audit information
         if (!string.IsNullOrEmpty(reqSeqId))
             sb.AppendLine($"{InfoColor}├─ ReqSeqId: {reqSeqId}{ResetColor}");
-        if (!string.IsNullOrEmpty(correlationId))
-            sb.AppendLine($"{InfoColor}├─ CorrelationId: {correlationId}{ResetColor}");
-        if (!string.IsNullOrEmpty(userId))
-            sb.AppendLine($"{InfoColor}├─ UserId: {userId}{ResetColor}");
-        if (!string.IsNullOrEmpty(tenantId))
-            sb.AppendLine($"{InfoColor}├─ TenantId: {tenantId}{ResetColor}");
-        if (!string.IsNullOrEmpty(issuer))
-            sb.AppendLine($"{InfoColor}├─ Issuer: {issuer}{ResetColor}");
         if (metadata != null && metadata.Count > 0)
         {
             sb.AppendLine($"{InfoColor}├─ Metadata:{ResetColor}");
@@ -128,10 +116,7 @@ public static class ServiceFrameworkLogger
         string subject,
         string mode,
         string? reqSeqId,
-        string? correlationId,
-        string? userId,
-        string? tenantId,
-        string? issuer,
+
         Dictionary<string, string>? metadata,
         long durationMs,
         bool isSuccess = true,
@@ -163,14 +148,6 @@ public static class ServiceFrameworkLogger
         // Audit information
         if (!string.IsNullOrEmpty(reqSeqId))
             sb.AppendLine($"{InfoColor}├─ ReqSeqId: {reqSeqId}{ResetColor}");
-        if (!string.IsNullOrEmpty(correlationId))
-            sb.AppendLine($"{InfoColor}├─ CorrelationId: {correlationId}{ResetColor}");
-        if (!string.IsNullOrEmpty(userId))
-            sb.AppendLine($"{InfoColor}├─ UserId: {userId}{ResetColor}");
-        if (!string.IsNullOrEmpty(tenantId))
-            sb.AppendLine($"{InfoColor}├─ TenantId: {tenantId}{ResetColor}");
-        if (!string.IsNullOrEmpty(issuer))
-            sb.AppendLine($"{InfoColor}├─ Issuer: {issuer}{ResetColor}");
         if (metadata != null && metadata.Count > 0)
         {
             sb.AppendLine($"{InfoColor}├─ Metadata:{ResetColor}");
@@ -354,6 +331,7 @@ public static class ServiceFrameworkLoggerExtensions
         string methodName,
         string subject,
         AuditInfo? auditInfo = null,
+        Dictionary<string, string>? metadata = null,
         long durationMs = 0,
         bool isSuccess = true,
         Exception? exception = null,
@@ -367,11 +345,7 @@ public static class ServiceFrameworkLoggerExtensions
             methodName,
             subject,
             auditInfo?.ReqSeqId,
-            auditInfo?.CorrelationId,
-            auditInfo?.UserId,
-            auditInfo?.TenantId,
-            auditInfo?.Issuer,
-            auditInfo?.Metadata,
+            metadata ?? auditInfo?.Metadata,
             durationMs,
             isSuccess,
             exception,
@@ -400,10 +374,6 @@ public static class ServiceFrameworkLoggerExtensions
             subject,
             mode,
             auditInfo?.ReqSeqId,
-            auditInfo?.CorrelationId,
-            auditInfo?.UserId,
-            auditInfo?.TenantId,
-            auditInfo?.Issuer,
             auditInfo?.Metadata,
             durationMs,
             isSuccess,
@@ -418,9 +388,5 @@ public static class ServiceFrameworkLoggerExtensions
 /// </summary>
 public record AuditInfo(
     string? ReqSeqId,
-    string? CorrelationId,
-    string? UserId,
-    string? TenantId,
     string? Timestamp = null,
-    string? Issuer = null,
     Dictionary<string, string>? Metadata = null);

@@ -9,6 +9,7 @@ namespace EdgeSync.ServiceFramework.Abstractions;
 public class ServiceFrameworkOptions
 {
     public const string SectionName = "ServiceFramework";
+    
     /// <summary>
     /// Default connection name to use when not specified
     /// </summary>

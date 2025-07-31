@@ -6,6 +6,7 @@ using EdgeSync.ServiceFramework.Abstractions.Models;
 using EdgeSync.ServiceFramework.Data;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Primitives;
 
 using NATS.Client.Core;
 using NATS.Client.JetStream;
@@ -325,43 +326,29 @@ public class JetStreamClient : IDisposable, IJetStreamClient
     {
         await TryConnectAsync();
 
-        var requestType = data.GetType();
-        
-        if (requestType.IsGenericType && requestType.GetGenericTypeDefinition() == typeof(RequestDto<>))
-        {
-            var serializer = NatsConnection.Opts.SerializerRegistry.GetSerializer<T>();
-            var response = await NatsConnection!.RequestAsync<T, string>(subject, data, requestSerializer: serializer, cancellationToken: cancellationToken);
-            return response.Data;
-        }
-        else
-        {
-            var request = Enrich(data);
-            var serializer = NatsConnection.Opts.SerializerRegistry.GetSerializer<RequestDto<T>>();            
-            var response = await NatsConnection!.RequestAsync<RequestDto<T>, string>(subject, request, requestSerializer: serializer, cancellationToken: cancellationToken);
-            return response.Data;
-        }
+        var headers = new NatsHeaders(CreateMetadata());
+        var response = await NatsConnection!.RequestAsync<T, string>(subject, data, headers: headers, cancellationToken: cancellationToken);
+        return response.Data;
     }
 
     public async Task<TR?> RequestAsync<T, TR>(string subject, T data, CancellationToken cancellationToken = default)
     {
         await TryConnectAsync();
 
-        var requestType = data.GetType();
-        if (requestType.IsGenericType && requestType.GetGenericTypeDefinition() == typeof(RequestDto<>))
-        {
-            var serializer = NatsConnection.Opts.SerializerRegistry.GetSerializer<RequestDto<T>>();
-            var deserializer = NatsConnection.Opts.SerializerRegistry.GetDeserializer<TR>();
-            var response = await NatsConnection!.RequestAsync<RequestDto<T>, TR>(subject, data, requestSerializer: serializer, replySerializer: deserializer, cancellationToken: cancellationToken);
-            return response.Data;
-        }
-        else
-        {
-            var request = Enrich(data);
-            var serializer = NatsConnection.Opts.SerializerRegistry.GetSerializer<RequestDto<T>>();
-            var deserializer = NatsConnection.Opts.SerializerRegistry.GetDeserializer<TR>();
-            var response = await NatsConnection!.RequestAsync<RequestDto<T>, TR>(subject, request, requestSerializer: serializer, replySerializer: deserializer, cancellationToken: cancellationToken);
-            return response.Data;
-        }
+        var headers = new NatsHeaders(CreateMetadata());
+        var response = await NatsConnection!.RequestAsync<T, TR>(subject, data, headers: headers, cancellationToken: cancellationToken);
+        return response.Data;
+    }
+
+    // Add information in NATS headers
+    private Dictionary<string, StringValues> CreateMetadata(Dictionary<string, StringValues>? metadata = null)
+    {
+        metadata ??= new Dictionary<string, StringValues>();
+
+        metadata.Add("issuer", _serviceName);
+        metadata.Add("serviceUUID", _serviceUUID);
+        
+        return metadata;
     }
 
     /// <summary>
@@ -382,16 +369,11 @@ public class JetStreamClient : IDisposable, IJetStreamClient
             NatsConnection.DisposeAsync().AsTask().GetAwaiter().GetResult();
         NatsConnection = null;
     }
-
-    private RequestDto<T> Enrich<T>(T data)
-    {
-        return RequestDto<T>.Create(data, _serviceName);
-    }
 }
 
 public class MsgBrokerJetStreamClient : JetStreamClient, IBrokerJetStreamClient
 {
-    public MsgBrokerJetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFactory natsConnectionFactory, NatsConnectionSettings? connectionSettings = null) 
+    public MsgBrokerJetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFactory natsConnectionFactory, NatsConnectionSettings? connectionSettings = null)
         : base(logger, natsConnectionFactory, connectionSettings)
     {
         // Use legacy config as fallback if connectionSettings is null
@@ -405,7 +387,7 @@ public class MsgBrokerJetStreamClient : JetStreamClient, IBrokerJetStreamClient
 
 public class MsgBusJetStreamClient : JetStreamClient, IBusJetStreamClient
 {
-    public MsgBusJetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFactory natsConnectionFactory, NatsConnectionSettings? connectionSettings = null) 
+    public MsgBusJetStreamClient(ILogger<JetStreamClient> logger, INatsConnectionFactory natsConnectionFactory, NatsConnectionSettings? connectionSettings = null)
         : base(logger, natsConnectionFactory, connectionSettings)
     {
         // Use legacy config as fallback if connectionSettings is null

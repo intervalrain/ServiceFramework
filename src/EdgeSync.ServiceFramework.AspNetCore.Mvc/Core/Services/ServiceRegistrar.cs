@@ -5,7 +5,6 @@ using EdgeSync.ServiceFramework.Abstractions.Attributes;
 using EdgeSync.ServiceFramework.Attributes;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Abstractions;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Models;
-using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core.Logging;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core;
 using EdgeSync.ServiceFramework.Core.Logging;
 using EdgeSync.ServiceFramework.Core.Serializers;
@@ -20,6 +19,7 @@ using NATS.Client.Core;
 using NATS.Client.Services;
 using ProtobufEmpty = Google.Protobuf.WellKnownTypes.Empty;
 using EmptyMessage = Google.Protobuf.WellKnownTypes.Empty;
+using Google.Protobuf.WellKnownTypes;
 
 namespace EdgeSync.ServiceFramework.Core.Services;
 
@@ -55,7 +55,7 @@ public class ServiceRegistrar : IServiceRegistrar
     }
 
     public async Task<ServiceRegistrationResult> RegisterRequestResponseServicesAsync(
-        List<(Type ServiceType, List<NatsMethodInfo> Methods)> reqrspServices,
+        List<(System.Type ServiceType, List<NatsMethodInfo> Methods)> reqrspServices,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Starting registration of {ServiceCount} request-response services", reqrspServices.Count);
@@ -149,7 +149,7 @@ public class ServiceRegistrar : IServiceRegistrar
         return svcServer;
     }
 
-    public async Task SetupRequestResponseServiceGroup(INatsConnection connection, INatsSvcServer svcServer, Type serviceType, string serviceName, List<NatsMethodInfo> methods, CancellationToken cancellationToken)
+    public async Task SetupRequestResponseServiceGroup(INatsConnection connection, INatsSvcServer svcServer, System.Type serviceType, string serviceName, List<NatsMethodInfo> methods, CancellationToken cancellationToken)
     {
         try
         {
@@ -225,7 +225,7 @@ public class ServiceRegistrar : IServiceRegistrar
         return result;
     }
 
-    private async Task AddServiceEndpoint<T>(INatsSvcServer svcServer, Type serviceType, NatsMethodInfo methodInfo, string endpointName, INatsConnection connection, CancellationToken cancellationToken) where T : class
+    private async Task AddServiceEndpoint<T>(INatsSvcServer svcServer, System.Type serviceType, NatsMethodInfo methodInfo, string endpointName, INatsConnection connection, CancellationToken cancellationToken) where T : class
     {
         _logger.LogInformation("Adding NATS service endpoint: {EndpointName} for method: {Method} on service: {ServiceType}",
             endpointName, methodInfo.Method.Name, serviceType.Name);
@@ -235,13 +235,15 @@ public class ServiceRegistrar : IServiceRegistrar
         var subject = GetSubject(methodInfo);
 
         await svcServer.AddEndpointAsync(
-        name: endpointName,
+            name: endpointName,
             serializer: serializerRegistry.GetDeserializer<T>(),
             subject: subject,
             handler: async (NatsSvcMsg<T> m) =>
             {
                 var stopwatch = Stopwatch.StartNew();
-                var IsRequestDto = AuditInfoExtractor.ExtractFromRequest(m.Data, out var auditInfo);
+                var IsRequestDto = AuditInfoExtractor.ExtractFromRequest<T>(m, out var auditInfo);
+
+                var metadata = m.Headers?.ToDictionary(x => x.Key, x => string.Join(",", x.Value.ToArray()));
 
                 // Handle exceptions which may occur during message processing
                 if (m.Exception != null)
@@ -252,6 +254,7 @@ public class ServiceRegistrar : IServiceRegistrar
                         methodInfo.Method.Name,
                         subject ?? $"{serviceType.Name}.{methodInfo.Method.Name}",
                         auditInfo,
+                        metadata,
                         stopwatch.ElapsedMilliseconds,
                         isSuccess: false,
                         exception: m.Exception,
@@ -266,10 +269,10 @@ public class ServiceRegistrar : IServiceRegistrar
 
                 // Initialize audit variables outside try block so they're accessible in catch
                 object? requestData = m.Data;
-                string? issuer = null;
                 string? userId = null;
                 string? tenantId = null;
                 string? correlationId = null;
+                string? issuer = m.Headers?["issuer"];
                 Guid reqSeqId = Guid.NewGuid();
 
                 try
@@ -279,13 +282,9 @@ public class ServiceRegistrar : IServiceRegistrar
 
                     if (serviceInstance != null)
                     {
-                        if (IsRequestDto && auditInfo != null)
+                        if (IsRequestDto && auditInfo != null && Guid.TryParse(auditInfo?.ReqSeqId, out var reqId))
                         {
-                            userId = auditInfo.UserId;
-                            tenantId = auditInfo.TenantId;
-                            correlationId = auditInfo.CorrelationId;
-                            issuer = auditInfo.Issuer;
-                            reqSeqId = Guid.TryParse(auditInfo?.ReqSeqId, out var val) ? val : Guid.NewGuid();
+                            reqSeqId = reqId;
                         }
 
                         // Invoke the actual service method
@@ -302,7 +301,7 @@ public class ServiceRegistrar : IServiceRegistrar
                                 var resultValue = task.GetType().GetProperty("Result")?.GetValue(task);
                                 if (resultValue != null)
                                 {
-                                    await ReplyWithAuditWrapper(m, resultValue, reqSeqId, userId, tenantId, correlationId);
+                                    await ReplyWithAuditWrapper(m, resultValue, reqSeqId, issuer, userId, tenantId, correlationId, metadata);
 
                                     stopwatch.Stop();
                                     _logger.LogServiceFrameworkRequestResponse(
@@ -310,6 +309,7 @@ public class ServiceRegistrar : IServiceRegistrar
                                         methodInfo.Method.Name,
                                         subject ?? $"{serviceType.Name}.{methodInfo.Method.Name}",
                                         auditInfo,
+                                        metadata,
                                         stopwatch.ElapsedMilliseconds,
                                         isSuccess: true,
                                         input: requestData,
@@ -323,7 +323,7 @@ public class ServiceRegistrar : IServiceRegistrar
                             // Handle synchronous methods
                             if (result != null)
                             {
-                                await ReplyWithAuditWrapper(m, result, reqSeqId, userId, tenantId, correlationId);
+                                await ReplyWithAuditWrapper(m, result, reqSeqId, issuer, userId, tenantId, correlationId, metadata);
                             }
                             stopwatch.Stop();
                             _logger.LogServiceFrameworkRequestResponse(
@@ -331,6 +331,7 @@ public class ServiceRegistrar : IServiceRegistrar
                                 methodInfo.Method.Name,
                                 subject ?? $"{serviceType.Name}.{methodInfo.Method.Name}",
                                 auditInfo,
+                                metadata,
                                 stopwatch.ElapsedMilliseconds,
                                 isSuccess: true,
                                 input: requestData,
@@ -346,6 +347,7 @@ public class ServiceRegistrar : IServiceRegistrar
                             methodInfo.Method.Name,
                             subject ?? $"{serviceType.Name}.{methodInfo.Method.Name}",
                             auditInfo,
+                            metadata,
                             stopwatch.ElapsedMilliseconds,
                             isSuccess: false,
                             exception: serviceNotFoundEx,
@@ -366,6 +368,7 @@ public class ServiceRegistrar : IServiceRegistrar
                         methodInfo.Method.Name,
                         subject ?? $"{serviceType.Name}.{methodInfo.Method.Name}",
                         auditInfo,
+                        metadata,
                         stopwatch.ElapsedMilliseconds,
                         isSuccess: false,
                         exception: ex,
@@ -387,7 +390,7 @@ public class ServiceRegistrar : IServiceRegistrar
             endpointName, methodInfo.Method.Name, serviceType.Name);
     }
 
-    private async Task AddParameterlessServiceEndpoint(INatsSvcServer svcServer, Type serviceType, NatsMethodInfo methodInfo, string endpointName, INatsConnection connection, CancellationToken cancellationToken)
+    private async Task AddParameterlessServiceEndpoint(INatsSvcServer svcServer, System.Type serviceType, NatsMethodInfo methodInfo, string endpointName, INatsConnection connection, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Adding parameterless NATS service endpoint: {EndpointName} for method: {Method} on service: {ServiceType}",
             endpointName, methodInfo.Method.Name, serviceType.Name);
@@ -437,10 +440,11 @@ public class ServiceRegistrar : IServiceRegistrar
             endpointName, methodInfo.Method.Name, serviceType.Name);
     }
 
-    private async Task HandleParameterlessEndpoint<T>(NatsSvcMsg<T> m, Type serviceType, NatsMethodInfo methodInfo, string endpointName, ISerializerAdapter adapter, string? subject, bool isEmptyMessage) where T : class
+    private async Task HandleParameterlessEndpoint<T>(NatsSvcMsg<T> m, System.Type serviceType, NatsMethodInfo methodInfo, string endpointName, ISerializerAdapter adapter, string? subject, bool isEmptyMessage) where T : class
     {
         var stopwatch = Stopwatch.StartNew();
-        var isRequestDto = AuditInfoExtractor.ExtractFromRequest(m.Data, out var auditInfo);
+        var isRequestDto = AuditInfoExtractor.ExtractFromRequest(m, out var auditInfo);
+        var metadata = m.Headers?.ToDictionary(x => x.Key, x => string.Join(",", x.Value.ToArray()));
 
         // Handle exceptions which may occur during message processing
         if (m.Exception != null)
@@ -451,6 +455,7 @@ public class ServiceRegistrar : IServiceRegistrar
                 methodInfo.Method.Name,
                 subject ?? $"{serviceType.Name}.{methodInfo.Method.Name}",
                 auditInfo,
+                metadata,
                 stopwatch.ElapsedMilliseconds,
                 isSuccess: false,
                 exception: m.Exception,
@@ -475,6 +480,8 @@ public class ServiceRegistrar : IServiceRegistrar
                 string? userId = null;
                 string? tenantId = null;
                 string? correlationId = null;
+                string? issuer = m.Headers?["issuer"];
+                string? serviceUUID = m.Headers?["serviceUUID"];
 
                 // Invoke the parameterless service method
                 var result = methodInfo.Method.Invoke(serviceInstance, []);
@@ -492,11 +499,11 @@ public class ServiceRegistrar : IServiceRegistrar
                         {
                             if (isEmptyMessage)
                             {
-                                await ReplyWithEmptyMessage(m, resultValue, reqSeqId, userId, tenantId, correlationId);
+                                await ReplyWithEmptyMessage(m, resultValue, reqSeqId, issuer, userId, tenantId, correlationId);
                             }
                             else
                             {
-                                await ReplyWithAuditWrapper(m, resultValue, reqSeqId, userId, tenantId, correlationId);
+                                await ReplyWithAuditWrapper(m, resultValue, reqSeqId, issuer, userId, tenantId, correlationId);
                             }
                         }
                         else if (isEmptyMessage)
@@ -516,11 +523,11 @@ public class ServiceRegistrar : IServiceRegistrar
                     {
                         if (isEmptyMessage)
                         {
-                            await ReplyWithEmptyMessage(m, result, reqSeqId, userId, tenantId, correlationId);
+                            await ReplyWithEmptyMessage(m, result, reqSeqId, issuer, userId, tenantId, correlationId);
                         }
                         else
                         {
-                            await ReplyWithAuditWrapper(m, result, reqSeqId, userId, tenantId, correlationId);
+                            await ReplyWithAuditWrapper(m, result, reqSeqId, issuer, userId, tenantId, correlationId, metadata);
                         }
                     }
                     else if (isEmptyMessage)
@@ -535,6 +542,7 @@ public class ServiceRegistrar : IServiceRegistrar
                     methodInfo.Method.Name,
                     subject ?? $"{serviceType.Name}.{methodInfo.Method.Name}",
                     auditInfo,
+                    metadata,
                     stopwatch.ElapsedMilliseconds,
                     isSuccess: true,
                     input: m.Data,
@@ -549,6 +557,7 @@ public class ServiceRegistrar : IServiceRegistrar
                     methodInfo.Method.Name,
                     subject ?? $"{serviceType.Name}.{methodInfo.Method.Name}",
                     auditInfo,
+                    metadata,
                     stopwatch.ElapsedMilliseconds,
                     isSuccess: false,
                     exception: serviceNotFoundEx,
@@ -568,6 +577,7 @@ public class ServiceRegistrar : IServiceRegistrar
                 methodInfo.Method.Name,
                 subject ?? $"{serviceType.Name}.{methodInfo.Method.Name}",
                 auditInfo,
+                metadata,
                 stopwatch.ElapsedMilliseconds,
                 isSuccess: false,
                 exception: ex.InnerException,
@@ -580,7 +590,7 @@ public class ServiceRegistrar : IServiceRegistrar
         }
     }
 
-    private async Task ReplyWithAuditWrapper<T>(NatsSvcMsg<T> msg, object response, Guid reqSeqId, string? userId, string? tenantId, string? correlationId) where T : class
+    private async Task ReplyWithAuditWrapper<T>(NatsSvcMsg<T> msg, object response, Guid reqSeqId, string? issuer, string? userId, string? tenantId, string? correlationId, Dictionary<string, string>? metadata = null) where T : class
     {
         if (!_options.EnableAuditWrapper)
         {
@@ -617,13 +627,6 @@ public class ServiceRegistrar : IServiceRegistrar
             {
                 var responseDto = implicitOperator.Invoke(null, [response]);
 
-                // Add audit info
-                var withAuditMethod = responseDtoType.GetMethod("WithAuditInfo");
-                if (withAuditMethod != null && responseDto != null)
-                {
-                    responseDto = withAuditMethod.Invoke(responseDto, [userId, tenantId, correlationId]);
-                }
-
                 await msg.ReplyAsync(responseDto!);
             }
             else
@@ -641,13 +644,6 @@ public class ServiceRegistrar : IServiceRegistrar
             {
                 var responseDto = successMethod.Invoke(null, [response, reqSeqId, null]);
 
-                // Add audit info
-                var withAuditMethod = responseDtoType.GetMethod("WithAuditInfo");
-                if (withAuditMethod != null && responseDto != null)
-                {
-                    responseDto = withAuditMethod.Invoke(responseDto, [userId, tenantId, correlationId]);
-                }
-
                 await msg.ReplyAsync(responseDto!);
             }
             else
@@ -657,7 +653,7 @@ public class ServiceRegistrar : IServiceRegistrar
         }
     }
 
-    private async Task ReplyWithEmptyMessage<T>(NatsSvcMsg<T> msg, object response, Guid reqSeqId, string? userId, string? tenantId, string? correlationId) where T : class
+    private async Task ReplyWithEmptyMessage<T>(NatsSvcMsg<T> msg, object response, Guid reqSeqId, string? issuer, string? userId, string? tenantId, string? correlationId) where T : class
     {
         // For Protobuf compatibility, always reply with EmptyMessage for parameterless methods
         // The actual response data is lost in this case, but it maintains compatibility
@@ -717,7 +713,7 @@ public class ServiceRegistrar : IServiceRegistrar
         };
     }
 
-    private string GetChannelName(Type serviceType, NatsMethodInfo methodInfo)
+    private string GetChannelName(System.Type serviceType, NatsMethodInfo methodInfo)
     {
         // Priority: method > class > default connection
 
@@ -739,7 +735,7 @@ public class ServiceRegistrar : IServiceRegistrar
         return _serviceFrameworkOptions.DefaultConnection ?? string.Empty;
     }
 
-    private (string QueueGroup, string ServiceName, string ServiceVersion, string? Description, Dictionary<string, string> Metadata) GetServiceInfo(Type serviceType, string fallbackServiceName)
+    private (string QueueGroup, string ServiceName, string ServiceVersion, string? Description, Dictionary<string, string> Metadata) GetServiceInfo(System.Type serviceType, string fallbackServiceName)
     {
         // Check for ServiceInfo attribute on the class
         var serviceInfo = serviceType.GetCustomAttribute<ServiceInfoAttribute>();
@@ -764,8 +760,8 @@ public class ServiceRegistrar : IServiceRegistrar
 /// </summary>
 public class ServiceRegistrationResult
 {
-    public List<(Type ServiceType, List<NatsMethodInfo> Methods, INatsSvcServer ServiceServer)> RegisteredServices { get; set; } = new();
-    public List<(Type ServiceType, List<NatsMethodInfo> Methods, string ErrorMessage)> FailedServices { get; set; } = new();
+    public List<(System.Type ServiceType, List<NatsMethodInfo> Methods, INatsSvcServer ServiceServer)> RegisteredServices { get; set; } = new();
+    public List<(System.Type ServiceType, List<NatsMethodInfo> Methods, string ErrorMessage)> FailedServices { get; set; } = new();
 }
 
 /// <summary>

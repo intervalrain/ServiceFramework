@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 using EdgeSync.ServiceFramework.Abstractions.Attributes;
 using EdgeSync.ServiceFramework.AspNetCore.Mvc.Core;
 using EdgeSync.ServiceFramework.Attributes;
@@ -17,12 +19,11 @@ public class SampleAppService(ILogger<SampleAppService> logger)
     // Enwrap RequestDto & ResponseDto by yourself
     // you need to enrich audit info by using `EnrichWith`
     [Subject("square", "square")]
-    public Task<ResponseDto<SampleOutput>> Square(RequestDto<SampleInput> input)
+    public Task<ErrorOr<SampleOutput>> Square(SampleInput input)
     {
-        var result = input.Data.Number * input.Data.Number;
+        var result = input.Number * input.Number;
         var output = new SampleOutput(result);
-        var response = ResponseDto<SampleOutput>.Success(output).EnrichWith(input);
-        return Task.FromResult(response);
+        return Task.FromResult(output.ToErrorOr());
     }
 
     [Subject("sqrt", "sqrt")]
@@ -31,10 +32,9 @@ public class SampleAppService(ILogger<SampleAppService> logger)
     {
         if (input.Number < 0)
         {
-            return Task.FromResult<ErrorOr<SampleOutput>>(Error.Failure("Number.Invalid", "Negative Number is not allowed")
-        );
+            return Task.FromResult<ErrorOr<SampleOutput>>(Error.NotFound("Number.Invalid", "Negative Number is not allowed"));
         }
-        var result = Math.Sqrt(input.Number);
+        var result = (int)Math.Sqrt(input.Number);
         var output = new SampleOutput(result);
         return Task.FromResult(output.ToErrorOr());
     }
@@ -55,8 +55,7 @@ public class SampleAppService(ILogger<SampleAppService> logger)
             throw new ArgumentOutOfRangeException(nameof(input.Number), "Negative numbers cannot be prime.");
         }
 
-        var number = (int)Math.Floor(input.Number);
-        var result = IsPrime(number) ? 1 : 0;
+        var result = IsPrime(input.Number) ? 1 : 0;
         var output = new SampleOutput(result);
         return Task.FromResult(output);
     }
@@ -75,5 +74,13 @@ public class SampleAppService(ILogger<SampleAppService> logger)
     }
 }
 
-public record SampleInput(double Number);
-public record SampleOutput(double Number);
+public class SampleInput(int number)
+{
+    [JsonPropertyName("number")]
+    public int Number { get; set; } = number;
+}
+public class SampleOutput(int number)
+{
+    [JsonPropertyName("number")]
+    public int Number { get; set; } = number;
+}

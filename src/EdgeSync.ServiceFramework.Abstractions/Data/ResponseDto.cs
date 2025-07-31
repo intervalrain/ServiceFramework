@@ -27,11 +27,8 @@ public record ResponseDto<T>
     [JsonPropertyName("message")]
     public string Message { get; init; } = string.Empty;
 
-    [JsonPropertyName("issuer")]
-    public string? Issuer { get; init; } = "Unknown";
-
     [JsonPropertyName("metadata")]
-    public Dictionary<string, string>? Metadata { get; init; }
+    public Dictionary<string, string>? Metadata { get; init; } = [];
 
     [JsonPropertyName("isError")]
     public bool IsError => Errors.Any();
@@ -43,7 +40,18 @@ public record ResponseDto<T>
     [JsonConverter(typeof(ErrorJsonConverter))]
     public Error? FirstError => Errors.FirstOrDefault();
 
-    protected ResponseDto(T? data, Guid reqSeqId)
+    [JsonConstructor]
+    public ResponseDto()
+    {
+        Timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        ReqSeqId = Guid.NewGuid();
+        RspSeqId = Guid.NewGuid();
+        Errors = [];
+        Message = string.Empty;
+        Metadata = [];
+    }
+
+    public ResponseDto(T? data, Guid reqSeqId)
     {
         Timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         ReqSeqId = reqSeqId;
@@ -51,7 +59,7 @@ public record ResponseDto<T>
         Data = data;
     }
 
-    protected ResponseDto(List<Error> errors, string? message = null)
+    public ResponseDto(List<Error> errors, string? message = null)
     {
         Timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         ReqSeqId = Guid.NewGuid();
@@ -60,7 +68,7 @@ public record ResponseDto<T>
         Message = message ?? errors.FirstOrDefault().Description ?? "An error occurred";
     }
 
-    protected ResponseDto(List<Error> errors, Guid reqSeqId, string? message = null)
+    public ResponseDto(List<Error> errors, Guid reqSeqId, string? message = null)
     {
         Timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         ReqSeqId = reqSeqId;
@@ -127,16 +135,14 @@ public record ResponseDto<T>
         return this with
         {
             ReqSeqId = input.ReqSeqId,
-            Issuer = input.Issuer,
             Metadata = input.Metadata
         };
     }
 
-        public ResponseDto<T> EnrichWith(string? issuer, Dictionary<string, string>? metadata = null)
+    public ResponseDto<T> EnrichWith(Dictionary<string, string>? metadata = null)
     {
         return this with
         {
-            Issuer = issuer,
             Metadata = metadata
         };
     }

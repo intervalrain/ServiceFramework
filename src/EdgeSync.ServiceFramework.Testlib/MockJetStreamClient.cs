@@ -256,6 +256,53 @@ public abstract class MockJetStreamClient : IJetStreamClient
         return Task.FromResult("This is a mock reply")!;
     }
 
+    public virtual Task<TR?> RequestAsync<T, TR>(string subject, T data, CancellationToken cancellationToken = default)
+    {
+        RequestWasCalled = true;
+        LastRequestedSubject = subject;
+        
+        // 將數據轉換為 byte[]
+        byte[] byteData;
+        if (data is byte[] bytes)
+        {
+            byteData = bytes;
+        }
+        else if (data is string str)
+        {
+            byteData = Encoding.UTF8.GetBytes(str);
+        }
+        else if (data == null)
+        {
+            byteData = [];
+        }
+        else
+        {
+            // 默認轉換為 JSON
+            byteData = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(data));
+        }
+        
+        LastRequestedData = byteData;
+        
+        // 記錄消息
+        var message = new NatsMessage(subject, byteData);
+        _requestedMessages.Add(message);
+        
+        // 執行驗證器
+        if (_subjectVerifiers.TryGetValue(subject, out var verifiers))
+        {
+            foreach (var verifier in verifiers)
+            {
+                if (!verifier(subject, byteData))
+                {
+                    throw new VerificationException($"驗證失敗: 主題 {subject} 的消息未通過自定義驗證");
+                }
+            }
+        }
+        
+        // Return a default value for TR or null
+        return Task.FromResult(default(TR));
+    }
+
 }
 
 /// <summary>

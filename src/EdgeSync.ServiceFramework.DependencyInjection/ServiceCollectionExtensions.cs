@@ -35,7 +35,7 @@ public static class ServiceCollectionExtensions
         var options = new ServiceFrameworkOptions();
         configuration.GetSection(sectionName).Bind(options);
         services.AddSingleton(Options.Create(options));
-        
+
         return AddServiceFrameworkCore(services, options);
     }
 

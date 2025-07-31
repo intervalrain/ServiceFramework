@@ -48,7 +48,7 @@ public class AuditWrapperTests
             ["CorrelationId"] = correlationId
         };
         var responseDto = ResponseDto<TestData>.Success(data, reqSeqId)
-            .EnrichWith(null, metadata);
+            .EnrichWith(metadata);
 
         // Assert
         Assert.True(responseDto.IsSuccess);

@@ -13,7 +13,7 @@ public interface IServiceRegistrar
     /// <summary>
     /// Registers request-response services with NATS
     /// </summary>
-    Task<ServiceRegistrationResult> RegisterRequestResponseServicesAsync(List<(Type ServiceType, List<NatsMethodInfo> Methods)> reqrspServices, CancellationToken cancellationToken = default);
+    Task<ServiceRegistrationResult> RegisterRequestResponseServicesAsync(List<(System.Type ServiceType, List<NatsMethodInfo> Methods)> reqrspServices, CancellationToken cancellationToken = default);
     
     /// <summary>
     /// Creates a NATS service server for the given service configuration
@@ -23,7 +23,7 @@ public interface IServiceRegistrar
     /// <summary>
     /// Sets up request-response service group endpoints
     /// </summary>
-    Task SetupRequestResponseServiceGroup(INatsConnection connection, INatsSvcServer svcServer, Type serviceType, string serviceName, List<NatsMethodInfo> methods, CancellationToken cancellationToken);
+    Task SetupRequestResponseServiceGroup(INatsConnection connection, INatsSvcServer svcServer, System.Type serviceType, string serviceName, List<NatsMethodInfo> methods, CancellationToken cancellationToken);
     
     /// <summary>
     /// Stops all registered services
