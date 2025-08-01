@@ -7,6 +7,11 @@
 格式基於 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)，
 並且本專案遵循 [語義化版本控制](https://semver.org/spec/v2.0.0.html)。
 
+## [1.3.0] - 2025-08-01
+### 新增功能
+- **MessageFramework**: Added RequestDto and ResponseDto, and automatically add audit wrapper via setting  EnableAuditWrapper
+- **Audit Log**: 加入統一的 request & response 的訊息記錄。
+
 ## [1.2.2] - 2025-07-17
 ### 功能增強
 - **AddNatsCheck**: 提供更簡潔的 HealthCheck 介面供使用者使用(HealthCheckBuilder 的 Extension)。
