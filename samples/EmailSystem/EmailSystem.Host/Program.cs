@@ -25,7 +25,16 @@ builder.Services.AddServiceFramework(options =>
         .WithCredFile(Environment.GetEnvironmentVariable("MSG_BROKER_CREDFILE") ?? string.Empty)
         .WithSerializerRegistry(NatsProtobufSerializerRegistry.Default);
 });
-builder.Services.AddAutoConvention();
+builder.Services.AddAutoConvention(options =>
+{
+    // Register SwaggerDoc for standalone usage (not conflicting with ABP)
+    options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    {
+        Title = "EmailSystem API",
+        Version = "v1",
+        Description = "Email management service API"
+    });
+});
 
 builder.Services.AddSingleton<IEmailRepository, InMemoryEmailRepository>();
 builder.Services.AddScoped<IEmailAppService, EmailAppService>();

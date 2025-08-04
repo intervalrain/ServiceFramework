@@ -81,7 +81,16 @@ public class Program
             //         .WithCredFile(Environment.GetEnvironmentVariable("MSG_BROKER_CREDFILE") ?? string.Empty)
             //         .WithSerializerRegistry(NatsProtobufSerializerRegistry.Default);
             // });
-            builder.Services.AddAutoConvention();
+            builder.Services.AddAutoConvention(options =>
+            {
+                // Register SwaggerDoc for standalone usage (not conflicting with ABP)
+                options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+                {
+                    Title = "AuthorSystem API",
+                    Version = "v1",
+                    Description = "Author management service API"
+                });
+            });
 
             builder.Services.AddSingleton<IAuthorRepository, InMemoryAuthorRepository>();
             builder.Services.AddScoped<IAuthorAppService, AuthorAppService>();

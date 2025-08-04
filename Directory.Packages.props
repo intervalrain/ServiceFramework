@@ -10,7 +10,7 @@
     <PackageVersion Include="Microsoft.AspNetCore.Http" Version="2.3.0" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="9.0.0" />
     <PackageVersion Include="NATS.Client.Core" Version="2.6.5" />
-    <PackageVersion Include="Swashbuckle.AspNetCore" Version="8.0.0" />
+    <PackageVersion Include="Swashbuckle.AspNetCore" Version="6.8.1" />
     <PackageVersion Include="Serilog.AspNetCore" Version="9.0.0" />
     <PackageVersion Include="Serilog.Sinks.Async" Version="2.1.0" />
     <PackageVersion Include="Serilog.Sinks.Console" Version="6.0.0" />
@@ -33,7 +33,7 @@
     <PackageVersion Include="Microsoft.Extensions.Options" Version="9.0.7" />
     <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.7" />
     <PackageVersion Include="Microsoft.Extensions.Options.DataAnnotations" Version="9.0.7" />
-    <PackageVersion Include="Swashbuckle.AspNetCore.SwaggerGen" Version="9.0.1" />
+    <PackageVersion Include="Swashbuckle.AspNetCore.SwaggerGen" Version="6.8.1" />
     <PackageVersion Include="Google.Protobuf" Version="3.31.1" />
     <PackageVersion Include="Grpc.Tools" Version="2.71.0" />
     <PackageVersion Include="Microsoft.Extensions.Diagnostics" Version="9.0.7" />
